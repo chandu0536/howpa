@@ -1,0 +1,105 @@
+{
+  "project_info": {
+    "project_number": "930346000528",
+    "project_id": "howpa-app",
+    "storage_bucket": "howpa-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:930346000528:android:74f89204cdf6d26f567815",
+        "android_client_info": {
+          "package_name": "com.example.howpa_pharmacy"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD3clyEPqg8rGD6MxZAealTE_FPXl1z_Vc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:930346000528:android:3b9f3346bc96d168567815",
+        "android_client_info": {
+          "package_name": "com.howpa.doctor"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD3clyEPqg8rGD6MxZAealTE_FPXl1z_Vc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:930346000528:android:28ceddd5cad5bb7f567815",
+        "android_client_info": {
+          "package_name": "com.howpa.lab"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD3clyEPqg8rGD6MxZAealTE_FPXl1z_Vc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:930346000528:android:3faa4c51b1e136bd567815",
+        "android_client_info": {
+          "package_name": "com.howpa.nurse"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD3clyEPqg8rGD6MxZAealTE_FPXl1z_Vc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:930346000528:android:9d2557836f5cee88567815",
+        "android_client_info": {
+          "package_name": "com.howpa.user"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD3clyEPqg8rGD6MxZAealTE_FPXl1z_Vc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

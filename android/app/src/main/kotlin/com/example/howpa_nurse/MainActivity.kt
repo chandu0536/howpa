@@ -1,4 +1,4 @@
-package com.example.howpa_nurse
+package com.howpa.nurse
 
 import io.flutter.embedding.android.FlutterActivity
 
