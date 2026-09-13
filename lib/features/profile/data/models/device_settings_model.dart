@@ -1,22 +1,30 @@
 class DeviceSettingsModel {
   final bool pushNotificationsEnabled;
   final bool locationTrackingEnabled;
+  final String? deviceToken;
+  final String? deviceType;
 
   const DeviceSettingsModel({
     this.pushNotificationsEnabled = true,
     this.locationTrackingEnabled = true,
+    this.deviceToken,
+    this.deviceType,
   });
 
   factory DeviceSettingsModel.fromJson(Map<String, dynamic> json) {
     return DeviceSettingsModel(
       pushNotificationsEnabled: json['pushNotificationsEnabled'] ?? true,
       locationTrackingEnabled: json['locationTrackingEnabled'] ?? true,
+      deviceToken: json['deviceToken']?.toString(),
+      deviceType: json['deviceType']?.toString(),
     );
   }
 
   Map<String, dynamic> toJson() => {
     'pushNotificationsEnabled': pushNotificationsEnabled,
     'locationTrackingEnabled': locationTrackingEnabled,
+    if (deviceToken != null && deviceToken!.isNotEmpty) 'deviceToken': deviceToken,
+    if (deviceType != null && deviceType!.isNotEmpty) 'deviceType': deviceType,
   };
 }
 

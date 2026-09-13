@@ -7,13 +7,17 @@ class DashboardCubit extends Cubit<DashboardState> {
 
   DashboardCubit({required this.repository}) : super(DashboardInitial());
 
-  Future<void> loadDashboard() async {
-    emit(DashboardLoading());
+  Future<void> loadDashboard({bool silent = false}) async {
+    if (!silent && state is! DashboardLoaded) {
+      emit(DashboardLoading());
+    }
     try {
       final data = await repository.getDashboardData();
       emit(DashboardLoaded(data: data));
     } catch (e) {
-      emit(DashboardError(e.toString()));
+      if (state is! DashboardLoaded) {
+        emit(DashboardError(e.toString()));
+      }
     }
   }
 

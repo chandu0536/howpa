@@ -82,23 +82,34 @@ class VisitsRepository {
   Future<bool> submitVisitReport({
     required String requestId,
     String? appointmentId,
+    String? summary,
     String? reportTitle,
-    required String findings,
-    required String treatmentGiven,
+    String? observations,
+    String? nurseNotes,
+    int? visitDuration,
+    String? findings,
+    String? treatmentGiven,
     List<String>? proceduresPerformed,
     List<Map<String, dynamic>>? medicinesAdministered,
     String? recommendations,
   }) async {
     try {
       final appId = appointmentId?.isNotEmpty == true ? appointmentId! : requestId;
+      final effectiveObservations = observations ?? findings ?? summary ?? 'Care provided according to protocol.';
+      final effectiveSummary = summary ?? reportTitle ?? treatmentGiven ?? 'Home Care Nursing Visit Completed';
+      final effectiveNurseNotes = nurseNotes ?? recommendations ?? 'Patient instructed on post-care.';
+
       final payload = {
         'appointmentId': appId,
         'requestId': requestId,
-        'reportTitle': reportTitle ?? 'Home Care Nursing Summary',
-        'observations': findings,
-        'findings': findings,
-        'treatmentGiven': treatmentGiven,
-        'proceduresPerformed': proceduresPerformed ?? [treatmentGiven],
+        'summary': effectiveSummary,
+        'observations': effectiveObservations,
+        'nurseNotes': effectiveNurseNotes,
+        'visitDuration': visitDuration ?? 30,
+        'reportTitle': effectiveSummary,
+        'findings': effectiveObservations,
+        'treatmentGiven': treatmentGiven ?? effectiveSummary,
+        'proceduresPerformed': proceduresPerformed ?? [treatmentGiven ?? effectiveSummary],
         if (medicinesAdministered != null) 'medicinesAdministered': medicinesAdministered,
         if (recommendations != null) 'recommendations': recommendations,
       };

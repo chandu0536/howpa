@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
@@ -46,9 +49,82 @@ class LocationService {
   LocationService._();
   static final LocationService instance = LocationService._();
 
+  Position? _lastKnownPosition;
+  LocationDetails? _cachedLocationDetails;
+
+  /// Default distance filter in meters to prevent GPS jitter and excessive battery/CPU consumption
+  static const int defaultDistanceFilterMeters = 10;
+
+  /// Creates platform-optimized LocationSettings with distance filter
+  LocationSettings getLocationSettings({
+    int distanceFilter = defaultDistanceFilterMeters,
+    LocationAccuracy accuracy = LocationAccuracy.high,
+  }) {
+    if (kIsWeb) {
+      return LocationSettings(
+        accuracy: accuracy,
+        distanceFilter: distanceFilter,
+      );
+    }
+
+    try {
+      if (Platform.isAndroid) {
+        return AndroidSettings(
+          accuracy: accuracy,
+          distanceFilter: distanceFilter,
+          intervalDuration: const Duration(seconds: 10),
+          timeLimit: const Duration(seconds: 15),
+        );
+      } else if (Platform.isIOS || Platform.isMacOS) {
+        return AppleSettings(
+          accuracy: accuracy,
+          distanceFilter: distanceFilter,
+          pauseLocationUpdatesAutomatically: true,
+          timeLimit: const Duration(seconds: 15),
+        );
+      }
+    } catch (_) {}
+
+    return LocationSettings(
+      accuracy: accuracy,
+      distanceFilter: distanceFilter,
+      timeLimit: const Duration(seconds: 15),
+    );
+  }
+
+  /// Returns a filtered stream of position updates that only emits when moving >= distanceFilter meters.
+  Stream<Position> getPositionStream({
+    int distanceFilter = defaultDistanceFilterMeters,
+    LocationAccuracy accuracy = LocationAccuracy.high,
+  }) {
+    final settings = getLocationSettings(
+      distanceFilter: distanceFilter,
+      accuracy: accuracy,
+    );
+
+    return Geolocator.getPositionStream(locationSettings: settings).where((pos) {
+      if (_lastKnownPosition == null) {
+        _lastKnownPosition = pos;
+        return true;
+      }
+      final distance = Geolocator.distanceBetween(
+        _lastKnownPosition!.latitude,
+        _lastKnownPosition!.longitude,
+        pos.latitude,
+        pos.longitude,
+      );
+
+      if (distance >= distanceFilter) {
+        _lastKnownPosition = pos;
+        return true;
+      }
+      return false;
+    });
+  }
+
   /// Requests permissions and fetches the current GPS location with reverse geocoded address.
   /// Falls back gracefully to Google Geolocation API & IP Geolocation if native plugin isn't yet compiled.
-  Future<LocationDetails?> getCurrentLocationDetails() async {
+  Future<LocationDetails?> getCurrentLocationDetails({bool forceRefresh = false}) async {
     // 1. Try Native Device GPS
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -65,25 +141,47 @@ class LocationService {
 
         if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
           final position = await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(
+            locationSettings: getLocationSettings(
+              distanceFilter: defaultDistanceFilterMeters,
               accuracy: LocationAccuracy.high,
-              timeLimit: Duration(seconds: 10),
             ),
           );
-          return await reverseGeocode(position.latitude, position.longitude);
+
+          if (!forceRefresh &&
+              _cachedLocationDetails != null &&
+              _lastKnownPosition != null) {
+            final distance = Geolocator.distanceBetween(
+              _lastKnownPosition!.latitude,
+              _lastKnownPosition!.longitude,
+              position.latitude,
+              position.longitude,
+            );
+            if (distance < defaultDistanceFilterMeters) {
+              return _cachedLocationDetails;
+            }
+          }
+
+          _lastKnownPosition = position;
+          final details = await reverseGeocode(position.latitude, position.longitude);
+          _cachedLocationDetails = details;
+          return details;
         }
       }
     } on MissingPluginException {
       // Native plugin not compiled yet in running session; fallback to network geolocation
-    } catch (_) {
-      // Continue to fallback
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Native location check notice: $e');
+      }
     }
 
     // 2. Fallback: Google Geolocation API
     try {
       final googleLoc = await _fetchGoogleGeolocation();
       if (googleLoc != null) {
-        return await reverseGeocode(googleLoc['lat']!, googleLoc['lng']!);
+        final details = await reverseGeocode(googleLoc['lat']!, googleLoc['lng']!);
+        _cachedLocationDetails = details;
+        return details;
       }
     } catch (_) {}
 
@@ -91,6 +189,7 @@ class LocationService {
     try {
       final ipLoc = await _fetchIpGeolocation();
       if (ipLoc != null) {
+        _cachedLocationDetails = ipLoc;
         return ipLoc;
       }
     } catch (_) {}

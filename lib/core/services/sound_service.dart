@@ -91,11 +91,13 @@ class SoundService {
       }
 
       _isPlaying = played;
-      if (played) {
+      if (played && kDebugMode) {
         debugPrint('✅ Buzzer sound playing successfully.');
       }
     } catch (e) {
-      debugPrint('Error playing buzzer sound: $e');
+      if (kDebugMode) {
+        debugPrint('Error playing buzzer sound: $e');
+      }
     }
   }
 
@@ -105,10 +107,14 @@ class SoundService {
       _isPlaying = false;
       if (_player != null) {
         await _player!.stop();
-        debugPrint('⏹️ Buzzer sound stopped.');
+        if (kDebugMode) {
+          debugPrint('⏹️ Buzzer sound stopped.');
+        }
       }
     } catch (e) {
-      debugPrint('Error stopping buzzer sound: $e');
+      if (kDebugMode) {
+        debugPrint('Error stopping buzzer sound: $e');
+      }
     }
   }
 

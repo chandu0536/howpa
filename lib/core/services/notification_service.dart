@@ -13,7 +13,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   if (kDebugMode) {
-    print('Handling background message: ${message.messageId}');
+    debugPrint('Handling background message: ${message.messageId}');
   }
 }
 
@@ -59,7 +59,7 @@ class NotificationService {
     );
 
     if (kDebugMode) {
-      print('User granted notification permission: ${settings.authorizationStatus}');
+      debugPrint('User granted notification permission: ${settings.authorizationStatus}');
     }
 
     // 2. Set up Android Notification Channel
@@ -87,7 +87,7 @@ class NotificationService {
       settings: initSettings,
       onDidReceiveNotificationResponse: (response) {
         if (kDebugMode) {
-          print('Notification clicked: ${response.payload}');
+          debugPrint('Notification clicked: ${response.payload}');
         }
       },
     );
@@ -106,14 +106,14 @@ class NotificationService {
     _fcm.onTokenRefresh.listen((newToken) {
       _fcmToken = newToken;
       if (kDebugMode) {
-        print('FCM Token refreshed: $newToken');
+        debugPrint('FCM Token refreshed: $newToken');
       }
     });
 
     // 7. Handle Foreground Messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       if (kDebugMode) {
-        print('Received foreground notification: ${message.notification?.title ?? message.data}');
+        debugPrint('Received foreground notification: ${message.notification?.title ?? message.data}');
       }
       final title = message.notification?.title?.toLowerCase() ?? '';
       final body = message.notification?.body?.toLowerCase() ?? '';
@@ -158,7 +158,7 @@ class NotificationService {
           _appointmentRequestsController.add(req);
         } catch (e) {
           if (kDebugMode) {
-            print('Error parsing dynamic appointment from FCM: $e');
+            debugPrint('Error parsing dynamic appointment from FCM: $e');
           }
         }
       }
@@ -168,7 +168,7 @@ class NotificationService {
     // 8. Handle Notification Opened from Background state
     void handleOpenedNotification(RemoteMessage message) {
       if (kDebugMode) {
-        print('Notification opened app with payload: ${message.data}');
+        debugPrint('Notification opened app with payload: ${message.data}');
       }
       try {
         final Map<String, dynamic> mergedData = Map<String, dynamic>.from(message.data);
@@ -184,7 +184,7 @@ class NotificationService {
         _appointmentRequestsController.add(req);
       } catch (e) {
         if (kDebugMode) {
-          print('Error dispatching appointment on notification open: $e');
+          debugPrint('Error dispatching appointment on notification open: $e');
         }
       }
       onNotificationOpened?.call(message);
@@ -211,11 +211,11 @@ class NotificationService {
     try {
       _fcmToken = await _fcm.getToken();
       if (kDebugMode) {
-        print('FCM Registration Token: $_fcmToken');
+        debugPrint('FCM Registration Token: $_fcmToken');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Error fetching FCM token: $e');
+        debugPrint('Error fetching FCM token: $e');
       }
     }
   }

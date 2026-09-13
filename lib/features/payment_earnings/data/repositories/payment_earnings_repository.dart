@@ -27,11 +27,33 @@ class PaymentEarningsRepository {
   }
 
   /// Request Payout Withdrawal: POST /api/nurse/earnings
-  Future<bool> requestWithdrawal(double amount) async {
+  Future<bool> requestWithdrawal(
+    double amount, {
+    Map<String, dynamic>? bankDetails,
+    String? accountNumber,
+    String? ifscCode,
+    String? bankName,
+    String? accountHolderName,
+  }) async {
     try {
+      final Map<String, dynamic> payload = {
+        'amount': amount,
+      };
+
+      if (bankDetails != null) {
+        payload['bankDetails'] = bankDetails;
+      } else if (accountNumber != null || ifscCode != null) {
+        payload['bankDetails'] = {
+          if (accountNumber != null) 'accountNumber': accountNumber,
+          if (ifscCode != null) 'ifscCode': ifscCode,
+          if (bankName != null) 'bankName': bankName,
+          if (accountHolderName != null) 'accountHolderName': accountHolderName,
+        };
+      }
+
       final response = await apiClient.post(
         ApiEndpoints.earnings,
-        body: {'amount': amount},
+        body: payload,
       );
       if (response != null && response is Map<String, dynamic>) {
         return response['success'] ?? true;

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 // Core
@@ -40,16 +41,17 @@ void main() async {
   // Log all Cubit/Bloc state transitions in Debug Console
   Bloc.observer = AppBlocObserver();
 
-  // Initialize Firebase with platform-specific options
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+  // Initialize Firebase & Notifications in background without blocking UI startup
+  Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  ).then((_) {
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-    await NotificationService().initialize();
-  } catch (e) {
-    debugPrint('Firebase initialization notice: $e');
-  }
+    NotificationService().initialize();
+  }).catchError((e) {
+    if (kDebugMode) {
+      debugPrint('Firebase initialization notice: $e');
+    }
+  });
 
   final apiClient = ApiClient();
 

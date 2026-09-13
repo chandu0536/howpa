@@ -9,8 +9,10 @@ class VisitsCubit extends Cubit<VisitsState> {
 
   VisitsCubit({required this.repository}) : super(VisitsInitial());
 
-  Future<void> fetchVisits() async {
-    emit(VisitsLoading());
+  Future<void> fetchVisits({bool silent = false}) async {
+    if (!silent && state is! VisitsLoaded) {
+      emit(VisitsLoading());
+    }
     try {
       final broadcastReqs = await repository.getBroadcastRequests();
       final allVisits = await repository.getVisits();
@@ -45,15 +47,20 @@ class VisitsCubit extends Cubit<VisitsState> {
         ...allVisits.where((v) => v.status.toUpperCase() == 'COMPLETED' && !completed.any((c) => c.id == v.id)),
       ];
 
+      final currentTabIndex = state is VisitsLoaded ? (state as VisitsLoaded).selectedTabIndex : 0;
+
       emit(VisitsLoaded(
         broadcastRequests: broadcastReqs,
         assignedVisits: todayAssigned,
         inProgressVisits: inProgress,
         upcomingVisits: upcoming,
         completedVisits: allCompleted,
+        selectedTabIndex: currentTabIndex,
       ));
     } catch (e) {
-      emit(VisitsError(e.toString()));
+      if (state is! VisitsLoaded) {
+        emit(VisitsError(e.toString()));
+      }
     }
   }
 

@@ -12,13 +12,13 @@ import '../../data/models/dashboard_data_model.dart';
 import '../cubit/dashboard_cubit.dart';
 import '../cubit/dashboard_state.dart';
 import 'package:howpa_nurse/features/visits/presentation/cubit/visits_cubit.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:howpa_nurse/core/services/location_service.dart';
 import 'package:howpa_nurse/features/visits/presentation/cubit/visits_state.dart';
 import 'package:howpa_nurse/features/visits/data/models/visit_model.dart';
 import 'package:howpa_nurse/features/profile/presentation/cubit/profile_cubit.dart';
 import 'package:howpa_nurse/features/profile/presentation/cubit/profile_state.dart';
 import 'package:howpa_nurse/core/services/notification_service.dart';
-
-
 
 class NurseDashboardScreen extends StatefulWidget {
   const NurseDashboardScreen({super.key});
@@ -45,6 +45,7 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
   ];
 
   StreamSubscription<BroadcastRequestModel>? _appointmentSubscription;
+  StreamSubscription<Position>? _locationSubscription;
   Timer? _livePollingTimer;
   bool _isModalShowing = false;
   final Set<String> _dismissedRequestIds = {};
@@ -64,6 +65,11 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
         _showNewVisitRequestModal(req);
       }
     });
+
+    // Start real-time GPS location tracking with 10-meter distance filter
+    if (_isOnline) {
+      _startLocationTracking();
+    }
 
     // Initialize PageController with high initial page for infinite smooth forward sliding
     const int initialPage = 999;
@@ -86,12 +92,36 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
     });
   }
 
+  void _startLocationTracking() {
+    _locationSubscription?.cancel();
+    _locationSubscription = LocationService.instance
+        .getPositionStream(distanceFilter: 10)
+        .listen((pos) {
+      if (mounted && _isOnline) {
+        context.read<DashboardCubit>().updateLocation(
+          latitude: pos.latitude,
+          longitude: pos.longitude,
+          heading: pos.heading,
+          speed: pos.speed,
+          accuracy: pos.accuracy,
+        );
+      }
+    }, onError: (err) {
+      // Ignored in release mode
+    });
+  }
+
+  void _stopLocationTracking() {
+    _locationSubscription?.cancel();
+    _locationSubscription = null;
+  }
+
   void _startLiveRequestsPolling() {
     _livePollingTimer?.cancel();
     _livePollingTimer = Timer.periodic(const Duration(seconds: 8), (_) {
       if (mounted && _isOnline) {
-        context.read<VisitsCubit>().fetchVisits();
-        context.read<DashboardCubit>().loadDashboard();
+        context.read<VisitsCubit>().fetchVisits(silent: true);
+        context.read<DashboardCubit>().loadDashboard(silent: true);
       }
     });
   }
@@ -110,6 +140,7 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
 
   @override
   void dispose() {
+    _stopLocationTracking();
     _appointmentSubscription?.cancel();
     _livePollingTimer?.cancel();
     SoundService.instance.stopBuzzer();
@@ -904,8 +935,10 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
                 });
                 if (_isOnline) {
                   _startLiveRequestsPolling();
+                  _startLocationTracking();
                 } else {
                   _livePollingTimer?.cancel();
+                  _stopLocationTracking();
                 }
               }
             }

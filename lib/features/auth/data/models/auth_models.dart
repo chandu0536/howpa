@@ -4,6 +4,7 @@ class SendOtpRequest {
   const SendOtpRequest({required this.mobile});
 
   Map<String, dynamic> toJson() => {
+    'phone': mobile,
     'mobile': mobile,
   };
 }
@@ -51,6 +52,7 @@ class VerifyOtpRequest {
   });
 
   Map<String, dynamic> toJson() => {
+    'phone': mobile,
     'mobile': mobile,
     'otp': otp,
     'fcmToken': fcmToken,

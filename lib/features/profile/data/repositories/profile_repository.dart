@@ -179,11 +179,30 @@ class ProfileRepository {
   }
 
   /// Mark Notification as Read: PATCH /api/nurse/notifications
-  Future<bool> markNotificationAsRead(String notificationId) async {
+  Future<bool> markNotificationAsRead({String? notificationId, bool all = false}) async {
     try {
+      final payload = all ? {'all': true} : {'notificationId': notificationId ?? ''};
       final response = await apiClient.patch(
         ApiEndpoints.notifications,
-        body: {'notificationId': notificationId},
+        body: payload,
+      );
+      if (response != null && response is Map<String, dynamic>) {
+        return response['success'] ?? true;
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Mark All Notifications as Read: PATCH /api/nurse/notifications
+  Future<bool> markAllNotificationsAsRead() => markNotificationAsRead(all: true);
+
+  /// Delete Specific Notification: DELETE /api/nurse/notifications?notificationId=...
+  Future<bool> deleteNotification(String notificationId) async {
+    try {
+      final response = await apiClient.delete(
+        '${ApiEndpoints.notifications}?notificationId=$notificationId',
       );
       if (response != null && response is Map<String, dynamic>) {
         return response['success'] ?? true;
@@ -210,14 +229,20 @@ class ProfileRepository {
   }
 
   /// Register FCM Device Token: POST /api/nurse/notifications/device-token
-  Future<bool> registerDeviceToken(String token, {String platform = 'android', String deviceModel = ''}) async {
+  Future<bool> registerDeviceToken(
+    String token, {
+    String platform = 'ANDROID',
+    String deviceId = '',
+    String appVersion = '1.0.0',
+  }) async {
     try {
       final response = await apiClient.post(
         ApiEndpoints.deviceToken,
         body: {
           'token': token,
-          'platform': platform,
-          if (deviceModel.isNotEmpty) 'deviceModel': deviceModel,
+          'platform': platform.toUpperCase(),
+          'deviceId': deviceId.isNotEmpty ? deviceId : 'flutter_device',
+          'appVersion': appVersion,
         },
       );
       if (response != null && response is Map<String, dynamic>) {
