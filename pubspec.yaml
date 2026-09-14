@@ -36,6 +36,12 @@ dependencies:
   cupertino_icons: ^1.0.8
   image_picker: ^1.1.2
   file_picker: ^8.1.4
+  flutter_bloc: ^8.1.6
+  equatable: ^2.0.5
+  http: ^1.2.2
+  shared_preferences: ^2.3.5
+  geolocator: ^13.0.2
+  google_maps_flutter: ^2.10.0
 
 dev_dependencies:
   flutter_test:

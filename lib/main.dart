@@ -1,24 +1,26 @@
 import 'package:flutter/material.dart';
-import 'package:howpa_nurse/screens/splash_screen.dart';
+import 'core/routes/app_routes.dart';
+import 'core/routes/app_router.dart';
+import 'core/theme/app_theme.dart';
+import 'core/theme/system_ui.dart';
 
 void main() {
-  runApp(const MyApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemUI.setDarkStatusBar();
+  runApp(const HowpaNurseApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class HowpaNurseApp extends StatelessWidget {
+  const HowpaNurseApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Howpa Nurse',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0052FF)),
-        useMaterial3: true,
-        fontFamily: 'Inter',
-      ),
-      home: const SplashScreen(),
+      theme: AppTheme.lightTheme,
+      initialRoute: AppRoutes.initial,
+      onGenerateRoute: AppRouter.onGenerateRoute,
     );
   }
 }
