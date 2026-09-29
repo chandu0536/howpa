@@ -134,11 +134,11 @@ class _UpdateVitalsScreenState extends State<UpdateVitalsScreen> {
       try {
         final image = await _picker.pickImage(
           source: source,
-          maxWidth: 1200,
-          maxHeight: 1200,
-          imageQuality: 85,
+          maxWidth: 800,
+          maxHeight: 800,
+          imageQuality: 70,
         );
-        if (image != null) {
+        if (image != null && mounted) {
           setModalState(() => pickedImage = image);
         }
       } catch (_) {}
