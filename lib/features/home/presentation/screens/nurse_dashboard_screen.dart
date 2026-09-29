@@ -12,6 +12,11 @@ import 'package:howpa_nurse/features/home/data/models/dashboard_models.dart';
 import 'package:howpa_nurse/features/visits/data/models/visit_models.dart';
 import 'package:howpa_nurse/features/visits/data/repositories/visits_repository.dart';
 
+import 'package:howpa_nurse/features/profile/data/repositories/profile_repository.dart';
+import 'package:howpa_nurse/core/services/booking_notification_manager.dart';
+
+import 'package:howpa_nurse/core/network/token_storage.dart';
+
 class NurseDashboardScreen extends StatefulWidget {
   const NurseDashboardScreen({super.key});
 
@@ -22,6 +27,7 @@ class NurseDashboardScreen extends StatefulWidget {
 class _NurseDashboardScreenState extends State<NurseDashboardScreen> with SingleTickerProviderStateMixin {
   final _dashboardRepo = DashboardRepositoryImpl();
   final _visitsRepo = VisitsRepositoryImpl();
+  final _profileRepo = ProfileRepositoryImpl();
 
   bool _isOnline = true;
   int _currentBottomNavIndex = 0;
@@ -52,13 +58,6 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
       duration: const Duration(seconds: 4),
     )..repeat();
 
-    // Auto-trigger Rapido/Uber style patient booking request popup after 1 minute if online
-    _visitRequestTimer = Timer(const Duration(minutes: 1), () {
-      if (mounted && _isOnline) {
-        _checkIncomingRequests();
-      }
-    });
-
     // Initialize PageController with high initial page for infinite smooth forward sliding
     const int initialPage = 999;
     _posterPageController = PageController(initialPage: initialPage);
@@ -69,15 +68,67 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
   }
 
   Future<void> _loadDashboardData() async {
-    final stats = await _dashboardRepo.getDashboard();
-    final visits = await _visitsRepo.getTodayVisits();
+    final statsFuture = _dashboardRepo.getDashboard();
+    final visitsFuture = _visitsRepo.getTodayVisits();
+    final profileFuture = _profileRepo.getProfile();
+
+    final stats = await statsFuture;
+    final visits = await visitsFuture;
+    await profileFuture;
+
     if (mounted) {
       setState(() {
         _stats = stats;
         _isOnline = stats.isOnline;
         _todayVisits = visits;
       });
+      await TokenStorage.saveOnlineStatus(_isOnline);
+      if (_isOnline) {
+        _startNearbyRequestsPolling();
+      } else {
+        _visitRequestTimer?.cancel();
+        _visitRequestTimer = null;
+      }
     }
+  }
+
+  void _startNearbyRequestsPolling() {
+    _visitRequestTimer?.cancel();
+    _visitRequestTimer = null;
+    if (!_isOnline) return;
+
+    _checkForNearbyRequests();
+
+    _visitRequestTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted || !_isOnline) {
+        _visitRequestTimer?.cancel();
+        _visitRequestTimer = null;
+        return;
+      }
+      _checkForNearbyRequests();
+    });
+  }
+
+  Future<void> _checkForNearbyRequests() async {
+    if (!mounted || !_isOnline) return;
+    try {
+      final requests = await _visitsRepo.getNearbyRequests();
+      if (!mounted || !_isOnline || requests.isEmpty) return;
+
+      final pending = requests.where((r) =>
+        r.id.isNotEmpty &&
+        !BookingNotificationManager.hasBeenShown(r.id) &&
+        r.status.toUpperCase() != 'COMPLETED' &&
+        r.status.toUpperCase() != 'REJECTED' &&
+        r.status.toUpperCase() != 'CANCELLED'
+      ).toList();
+      if (pending.isNotEmpty && !BookingNotificationManager.isPopupShowing && _isOnline) {
+        final nextReq = pending.first;
+        if (mounted && _isOnline) {
+          _showNewVisitRequestModal(item: nextReq);
+        }
+      }
+    } catch (_) {}
   }
 
   void _startPosterAutoSlideTimer() {
@@ -101,563 +152,47 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
     super.dispose();
   }
 
-  Future<void> _checkIncomingRequests() async {
-    final nearby = await _visitsRepo.getNearbyRequests();
-    if (mounted && nearby.isNotEmpty && _isOnline) {
-      _showNewVisitRequestModal(item: nearby.first);
+  void _showNewVisitRequestModal({VisitRequestItem? item}) async {
+    if (!_isOnline || BookingNotificationManager.isPopupShowing) return;
+
+    VisitRequestItem? targetItem = item;
+    if (targetItem == null) {
+      final requests = await _visitsRepo.getNearbyRequests();
+      if (requests.isNotEmpty) {
+        targetItem = requests.first;
+      }
     }
-  }
 
-  void _showNewVisitRequestModal({VisitRequestItem? item}) {
-    final reqId = item?.id ?? 'req_1';
-    final pName = item?.patientName ?? 'Mrs. Kamala Devi';
-    final pAddress = item?.address ?? 'D No. 12–25, Srinivasa Nagar, Visakhapatnam';
-    final pDistance = item?.distance ?? '2.4 km away';
-    final pTag = item?.serviceTag ?? 'Wound Dressing';
-    final pTime = item?.time ?? 'Today, 10:00 AM – 11:00 AM';
-    final pAvatar = item?.avatarUrl ?? 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
+    if (targetItem == null || !mounted || !_isOnline) return;
 
-    showModalBottomSheet(
+    final reqItem = targetItem;
+    BookingNotificationManager.showNewBookingDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Drag handle pill bar
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFCBD5E1),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              // Animated Bell & Soundwaves Top Icon Block
-              Center(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Left Soundwaves
-                    Row(
-                      children: [
-                        _buildSoundwaveBar(10),
-                        const SizedBox(width: 3),
-                        _buildSoundwaveBar(16),
-                        const SizedBox(width: 3),
-                        _buildSoundwaveBar(22),
-                      ],
-                    ),
-                    const SizedBox(width: 10),
-
-                    // Center Glowing Orange Bell Circle
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color(0xFFFFF5EE),
-                        border: Border.all(
-                          color: const Color(0xFFFF5C00),
-                          width: 2.5,
-                        ),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x26FF5C00),
-                            blurRadius: 10,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.notifications_active_rounded,
-                        color: Color(0xFFFF5C00),
-                        size: 26,
-                      ),
-                    ),
-
-                    const SizedBox(width: 10),
-                    // Right Soundwaves
-                    Row(
-                      children: [
-                        _buildSoundwaveBar(22),
-                        const SizedBox(width: 3),
-                        _buildSoundwaveBar(16),
-                        const SizedBox(width: 3),
-                        _buildSoundwaveBar(10),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              // Title & Warning Subtitle
-              const Text(
-                'New Visit Request',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0F172A),
-                  letterSpacing: -0.3,
-                ),
-              ),
-              const SizedBox(height: 2),
-              const Text(
-                "You'll receive less requests if you reject too many times.",
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFF64748B),
-                ),
-                textAlign: TextAlign.center,
-              ),
-
-              const SizedBox(height: 12),
-
-              // Patient Card Container
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: const Color(0xFFF1F5F9),
-                    width: 1.2,
-                  ),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x06000000),
-                      blurRadius: 6,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Patient Header Row
-                    Row(
-                      children: [
-                        // Patient Avatar
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: const Color(0xFFF1F5F9),
-                            border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
-                          ),
-                          child: ClipOval(
-                            child: Image.network(
-                              pAvatar,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return const Icon(
-                                  Icons.person_rounded,
-                                  color: Color(0xFF94A3B8),
-                                  size: 24,
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                pName,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF0F172A),
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              const Text(
-                                'Patient Visit Request',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF64748B),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-
-                              // Wound Dressing Tag Pill
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFFF3EC),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: const Color(0xFFFFD4BE), width: 0.8),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Icons.medical_services_outlined,
-                                      size: 11,
-                                      color: Color(0xFFFF5C00),
-                                    ),
-                                    const SizedBox(width: 3),
-                                    Text(
-                                      pTag,
-                                      style: const TextStyle(
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFFFF5C00),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Divider(height: 1, color: Color(0xFFF1F5F9)),
-                    ),
-
-                    // Scheduled Time Row
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEFF6FF),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.calendar_today_rounded,
-                            color: Color(0xFF2563EB),
-                            size: 15,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Scheduled Time',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Color(0xFF94A3B8),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 1),
-                            Text(
-                              pTime,
-                              style: const TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF0F172A),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Divider(height: 1, color: Color(0xFFF1F5F9)),
-                    ),
-
-                    // Distance & Location Row
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEFF6FF),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.location_on_outlined,
-                            color: Color(0xFF2563EB),
-                            size: 15,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Distance & Location',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Color(0xFF94A3B8),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 1),
-                              Text(
-                                pDistance,
-                                style: const TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFFFF5C00),
-                                ),
-                              ),
-                              const SizedBox(height: 1),
-                              Text(
-                                pAddress,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF475569),
-                                  height: 1.2,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.all(7),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
-                          ),
-                          child: const Icon(
-                            Icons.map_outlined,
-                            color: Color(0xFF2563EB),
-                            size: 16,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // Doctor's Note Container
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEFF6FF),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(5),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Icon(
-                              Icons.article_outlined,
-                              color: Color(0xFF2563EB),
-                              size: 15,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: const [
-                                Text(
-                                  "Doctor's Note",
-                                  style: TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF2563EB),
-                                  ),
-                                ),
-                                SizedBox(height: 1),
-                                Text(
-                                  'Assigned for nursing home care visit.',
-                                  style: TextStyle(
-                                    fontSize: 10.5,
-                                    color: Color(0xFF334155),
-                                    height: 1.2,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Reject & Accept Action Buttons Row
-              Row(
-                children: [
-                  // Reject Button (Red Outline)
-                  Expanded(
-                    child: Container(
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: const Color(0xFFEF4444),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          Navigator.pop(context);
-                          await _visitsRepo.rejectVisitRequest(reqId);
-                          await _loadDashboardData();
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text('Visit Request Declined'),
-                                backgroundColor: const Color(0xFFEF4444),
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              ),
-                            );
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(
-                              Icons.cancel_outlined,
-                              color: Color(0xFFEF4444),
-                              size: 16,
-                            ),
-                            SizedBox(width: 6),
-                            Text(
-                              'Reject',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFFEF4444),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(width: 10),
-
-                  // Accept Button (Gradient Blue to Orange)
-                  Expanded(
-                    child: Container(
-                      height: 44,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        gradient: const LinearGradient(
-                          colors: [
-                            Color(0xFF0052FF),
-                            Color(0xFFFF5C00),
-                          ],
-                          begin: Alignment.centerLeft,
-                          end: Alignment.centerRight,
-                        ),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x260052FF),
-                            blurRadius: 8,
-                            offset: Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          Navigator.pop(context);
-                          await _visitsRepo.acceptVisitRequest(reqId);
-                          await _loadDashboardData();
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text('Visit Request Accepted! Added to today\'s schedule.'),
-                                backgroundColor: const Color(0xFF10B981),
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              ),
-                            );
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(
-                              Icons.check_circle_outline_rounded,
-                              color: Colors.white,
-                              size: 16,
-                            ),
-                            SizedBox(width: 6),
-                            Text(
-                              'Accept',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
+      item: reqItem,
+      onAccept: () async {
+        await _visitsRepo.acceptVisitRequest(reqItem.id);
+        await _loadDashboardData();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Visit Request Accepted! Added to today\'s schedule.'),
+              backgroundColor: Color(0xFF10B981),
+            ),
+          );
+        }
       },
-    );
-  }
-
-  Widget _buildSoundwaveBar(double height) {
-    return Container(
-      width: 3.5,
-      height: height,
-      decoration: BoxDecoration(
-        color: const Color(0xFFFF5C00),
-        borderRadius: BorderRadius.circular(2),
-      ),
+      onReject: () async {
+        await _visitsRepo.rejectVisitRequest(reqItem.id);
+        await _loadDashboardData();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Visit Request Declined'),
+              backgroundColor: Color(0xFFEF4444),
+            ),
+          );
+        }
+      },
     );
   }
 
@@ -749,30 +284,11 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
                           child: ListenableBuilder(
                             listenable: UserProfileManager.instance,
                             builder: (context, child) {
-                              final hasPhoto = UserProfileManager.instance.hasProfileImage;
-                              final photoFile = UserProfileManager.instance.profileImageFile;
-                              if (hasPhoto && photoFile != null) {
-                                return ClipOval(
-                                  child: Image.file(
-                                    photoFile,
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                  ),
-                                );
-                              }
-                              return ClipOval(
-                                child: Image.network(
-                                  'https://images.unsplash.com/photo-1594824813571-215f396469a0?auto=format&fit=crop&q=80&w=200',
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return const Icon(
-                                      Icons.person_rounded,
-                                      color: Colors.white,
-                                      size: 22,
-                                    );
-                                  },
-                                ),
+                              return UserProfileManager.instance.buildAvatarWidget(
+                                size: 40,
+                                fallbackBgColor: const Color(0xFF0052FF),
+                                fallbackIconColor: Colors.white,
+                                iconSize: 22,
                               );
                             },
                           ),
@@ -797,10 +313,24 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
               // 2. Compact Online Status Switcher Pill Bar
               GestureDetector(
                 onTap: () {
+                  final newStatus = !_isOnline;
                   setState(() {
-                    _isOnline = !_isOnline;
+                    _isOnline = newStatus;
                   });
-                  DashboardRepositoryImpl().toggleDutyStatus(_isOnline);
+                  TokenStorage.saveOnlineStatus(newStatus);
+                  DashboardRepositoryImpl().toggleDutyStatus(newStatus);
+                  if (newStatus) {
+                    _startNearbyRequestsPolling();
+                  } else {
+                    _visitRequestTimer?.cancel();
+                    _visitRequestTimer = null;
+                    if (BookingNotificationManager.isPopupShowing) {
+                      BookingNotificationManager.isPopupShowing = false;
+                      if (Navigator.canPop(context)) {
+                        Navigator.pop(context);
+                      }
+                    }
+                  }
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 250),
@@ -987,39 +517,6 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
                               ),
                             ],
                           ),
-                          if (_isOnline) ...[
-                            const SizedBox(height: 8),
-                            GestureDetector(
-                              onTap: _showNewVisitRequestModal,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFFF3EC),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: const Color(0xFFFFD4BE), width: 0.8),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: const [
-                                    Icon(Icons.notifications_active_rounded, size: 13, color: Color(0xFFFF5C00)),
-                                    SizedBox(width: 4),
-                                    Flexible(
-                                      child: Text(
-                                        'Test Rapido Request Pop-up',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFFFF5C00),
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                        maxLines: 1,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
                         ],
                       ),
                     ),
@@ -1037,7 +534,7 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
                       icon: Icons.calendar_month_rounded,
                       iconBg: const Color(0xFFEEF2FF),
                       iconColor: const Color(0xFF0052FF),
-                      value: '${_stats.todayVisitsCount}',
+                      value: '${math.max(_stats.todayVisitsCount, _todayVisits.length)}',
                       valueColor: const Color(0xFF0052FF),
                       label: "Today's Visits",
                       onTap: () {
@@ -1063,7 +560,7 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const VisitsScreen(initialTabIndex: 3),
+                            builder: (context) => const VisitsScreen(initialTabIndex: 2),
                           ),
                         );
                       },

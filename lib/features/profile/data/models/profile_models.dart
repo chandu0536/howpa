@@ -1,5 +1,6 @@
 class UpdateProfileRequest {
   final String fullName;
+  final String? email;
   final String gender;
   final String dob;
   final String specialization;
@@ -14,6 +15,7 @@ class UpdateProfileRequest {
 
   const UpdateProfileRequest({
     required this.fullName,
+    this.email,
     required this.gender,
     required this.dob,
     required this.specialization,
@@ -39,6 +41,11 @@ class UpdateProfileRequest {
       'city': city,
       'pincode': pincode,
     };
+    if (email != null && email!.trim().isNotEmpty) {
+      map['email'] = email!.trim();
+      map['emailId'] = email!.trim();
+      map['email_id'] = email!.trim();
+    }
     if (bio != null) map['bio'] = bio!;
     if (latitude != null) map['latitude'] = latitude.toString();
     if (longitude != null) map['longitude'] = longitude.toString();
@@ -76,23 +83,111 @@ class KycDocumentsStatus {
   });
 
   factory KycDocumentsStatus.fromJson(Map<String, dynamic> json) {
-    final cert = json['nursingCertificate'] ?? json['certificate'] ?? json['nursing_certificate'];
-    final aadhaarF = json['aadhaarFront'] ?? json['aadhaar'] ?? json['aadhaar_front'] ?? json['aadhaarCard'];
-    final aadhaarB = json['aadhaarBack'] ?? json['aadhaar_back'];
-    final govt = json['govtId'] ?? json['governmentId'] ?? json['govt_id'] ?? json['idProof'];
-    final photo = json['avatar'] ?? json['photo'] ?? json['profilePhoto'] ?? json['recentPhoto'];
+    String? extractUrl(dynamic obj) {
+      if (obj == null) return null;
+      if (obj is String && obj.trim().isNotEmpty && obj.trim() != 'null') return obj.trim();
+      if (obj is Map) {
+        final u = obj['url']?.toString().trim();
+        if (u != null && u.isNotEmpty && u != 'null') return u;
+        final k = obj['key']?.toString().trim();
+        if (k != null && k.isNotEmpty && k != 'null') return k;
+        final f = obj['fileUrl']?.toString().trim();
+        if (f != null && f.isNotEmpty && f != 'null') return f;
+        final p = obj['path']?.toString().trim();
+        if (p != null && p.isNotEmpty && p != 'null') return p;
+        final l = obj['location']?.toString().trim();
+        if (l != null && l.isNotEmpty && l != 'null') return l;
+      }
+      return null;
+    }
+
+    final cert = json['nursingCertificate'] ??
+        json['certificate'] ??
+        json['nursing_certificate'] ??
+        json['nursingCert'] ??
+        json['nursing_cert'] ??
+        json['degreeCertificate'] ??
+        json['degree_certificate'];
+
+    final aadhaarF = json['aadhaarFront'] ??
+        json['aadhaar'] ??
+        json['aadhaar_front'] ??
+        json['aadhaarCard'] ??
+        json['aadhaar_card'] ??
+        json['aadhaarCardFront'] ??
+        json['aadhaar_card_front'] ??
+        json['aadharFront'] ??
+        json['aadhar_front'] ??
+        json['aadhar'];
+
+    final aadhaarB = json['aadhaarBack'] ??
+        json['aadhaar_back'] ??
+        json['aadhaarCardBack'] ??
+        json['aadhaar_card_back'] ??
+        json['aadharBack'] ??
+        json['aadhar_back'];
+
+    final govt = json['govtId'] ??
+        json['governmentId'] ??
+        json['govt_id'] ??
+        json['idProof'] ??
+        json['id_proof'] ??
+        json['idCard'] ??
+        json['id_card'];
+
+    final photo = json['avatar'] ??
+        json['photo'] ??
+        json['profilePhoto'] ??
+        json['recentPhoto'] ??
+        json['profileImage'] ??
+        json['profile_image'] ??
+        json['profile_photo'];
+
+    final certUrl = extractUrl(cert);
+    final aadhaarFUrl = extractUrl(aadhaarF);
+    final aadhaarBUrl = extractUrl(aadhaarB);
+    final govtUrl = extractUrl(govt);
+    final photoUrl = extractUrl(photo);
+
+    final bool certUploaded = certUrl != null ||
+        json['isNursingCertUploaded'] == true ||
+        json['nursingCertificateUploaded'] == true ||
+        json['is_nursing_cert_uploaded'] == true ||
+        json['isNursingCertificateUploaded'] == true;
+
+    final bool aadhaarFUploaded = aadhaarFUrl != null ||
+        json['isAadhaarFrontUploaded'] == true ||
+        json['aadhaarFrontUploaded'] == true ||
+        json['is_aadhaar_front_uploaded'] == true ||
+        json['isAadharFrontUploaded'] == true;
+
+    final bool aadhaarBUploaded = aadhaarBUrl != null ||
+        json['isAadhaarBackUploaded'] == true ||
+        json['aadhaarBackUploaded'] == true ||
+        json['is_aadhaar_back_uploaded'] == true ||
+        json['isAadharBackUploaded'] == true;
+
+    final bool govtUploaded = govtUrl != null ||
+        json['isGovtIdUploaded'] == true ||
+        json['govtIdUploaded'] == true ||
+        json['is_govt_id_uploaded'] == true;
+
+    final bool photoUploaded = photoUrl != null ||
+        json['isPhotoUploaded'] == true ||
+        json['photoUploaded'] == true ||
+        json['is_photo_uploaded'] == true;
 
     return KycDocumentsStatus(
-      isNursingCertUploaded: cert != null || json['isNursingCertUploaded'] == true,
-      isAadhaarFrontUploaded: aadhaarF != null || json['isAadhaarFrontUploaded'] == true,
-      isAadhaarBackUploaded: aadhaarB != null || json['isAadhaarBackUploaded'] == true,
-      isGovtIdUploaded: govt != null || json['isGovtIdUploaded'] == true,
-      isPhotoUploaded: photo != null || json['isPhotoUploaded'] == true,
-      nursingCertUrl: cert is String ? cert : null,
-      aadhaarFrontUrl: aadhaarF is String ? aadhaarF : null,
-      aadhaarBackUrl: aadhaarB is String ? aadhaarB : null,
-      govtIdUrl: govt is String ? govt : null,
-      photoUrl: photo is String ? photo : null,
+      isNursingCertUploaded: certUploaded,
+      isAadhaarFrontUploaded: aadhaarFUploaded,
+      isAadhaarBackUploaded: aadhaarBUploaded,
+      isGovtIdUploaded: govtUploaded,
+      isPhotoUploaded: photoUploaded,
+      nursingCertUrl: certUrl,
+      aadhaarFrontUrl: aadhaarFUrl,
+      aadhaarBackUrl: aadhaarBUrl,
+      govtIdUrl: govtUrl,
+      photoUrl: photoUrl,
       status: (json['status'] ?? json['approvalStatus'] ?? 'PENDING').toString(),
       rejectionReason: json['rejectionReason'] as String?,
     );
@@ -110,11 +205,20 @@ class SpecializationItem {
     this.description,
   });
 
+  factory SpecializationItem.fromData(dynamic item) {
+    if (item is String) {
+      return SpecializationItem(id: item, name: item);
+    } else if (item is Map<String, dynamic>) {
+      return SpecializationItem.fromJson(item);
+    }
+    return const SpecializationItem(id: '1', name: 'General Nursing');
+  }
+
   factory SpecializationItem.fromJson(Map<String, dynamic> json) {
     return SpecializationItem(
-      id: json['id'] as String? ?? json['_id'] as String? ?? '',
-      name: json['name'] as String? ?? '',
-      description: json['description'] as String?,
+      id: json['id']?.toString() ?? json['_id']?.toString() ?? json['name']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      description: json['description']?.toString(),
     );
   }
 }

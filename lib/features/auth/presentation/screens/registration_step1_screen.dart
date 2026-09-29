@@ -2,13 +2,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:howpa_nurse/core/network/api_exceptions.dart';
+import 'package:howpa_nurse/features/auth/presentation/screens/phone_number_screen.dart';
 import 'package:howpa_nurse/features/auth/presentation/screens/registration_step2_screen.dart';
 import 'package:howpa_nurse/features/auth/presentation/screens/map_picker_screen.dart';
 import 'package:howpa_nurse/features/profile/data/models/profile_models.dart';
 import 'package:howpa_nurse/features/profile/data/repositories/profile_repository.dart';
 import 'package:howpa_nurse/core/services/user_profile_manager.dart';
 import 'package:howpa_nurse/core/services/location_service.dart';
+import 'package:howpa_nurse/core/network/api_exceptions.dart';
 
 class RegistrationStep1Screen extends StatefulWidget {
   final String phoneNumber;
@@ -39,6 +40,8 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
   final TextEditingController _experienceController = TextEditingController();
 
   String? _selectedGender;
+  double? _latitude;
+  double? _longitude;
 
   // Location controllers (Positioned AT THE VERY END)
   final TextEditingController _countryController = TextEditingController(text: 'India');
@@ -102,6 +105,110 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
     _districtController.addListener(_onFieldChanged);
     _areaController.addListener(_onFieldChanged);
     _locationController.addListener(_onFieldChanged);
+
+    // Auto-prefill data previously entered by the user or stored in backend
+    _loadExistingData();
+  }
+
+  void _loadExistingData() {
+    final manager = UserProfileManager.instance;
+
+    if (manager.fullName.isNotEmpty && manager.fullName != 'Nurse') {
+      _fullNameController.text = manager.fullName;
+    }
+    if (manager.dob.isNotEmpty) {
+      _dobController.text = UserProfileManager.formatCleanDob(manager.dob);
+    }
+    if (manager.email.isNotEmpty) {
+      _emailController.text = manager.email;
+    }
+    if (manager.gender.isNotEmpty) {
+      _selectedGender = UserProfileManager.normalizeGender(manager.gender);
+    }
+    if (manager.experience.isNotEmpty && manager.experience != '0') {
+      _experienceController.text = manager.experience;
+    }
+    if (manager.specialization.isNotEmpty && manager.specialization != 'Nurse Care') {
+      _selectedSpecialization = manager.specialization;
+    }
+    if (manager.country.isNotEmpty) {
+      _countryController.text = manager.country;
+    }
+    if (manager.state.isNotEmpty) {
+      _stateController.text = manager.state;
+    }
+    if (manager.district.isNotEmpty) {
+      _districtController.text = manager.district;
+    }
+    if (manager.area.isNotEmpty) {
+      _areaController.text = manager.area;
+    }
+    if (manager.location.isNotEmpty) {
+      _locationController.text = manager.location;
+    }
+    if (manager.latitude != null) {
+      _latitude = manager.latitude;
+    }
+    if (manager.longitude != null) {
+      _longitude = manager.longitude;
+    }
+    if (manager.profileImageFile != null && manager.profileImageFile!.existsSync()) {
+      _profileImageFile = manager.profileImageFile;
+      _hasProfilePhoto = true;
+    } else if (manager.profilePhotoUrl != null && manager.profilePhotoUrl!.isNotEmpty) {
+      _hasProfilePhoto = true;
+    }
+
+    _fetchProfileFromBackend();
+  }
+
+  Future<void> _fetchProfileFromBackend() async {
+    try {
+      final user = await ProfileRepositoryImpl().getProfile();
+      if (user != null && mounted) {
+        setState(() {
+          if (_fullNameController.text.isEmpty && user.fullName != null && user.fullName!.isNotEmpty) {
+            _fullNameController.text = user.fullName!;
+          }
+          if (user.email != null && user.email!.trim().isNotEmpty && user.email!.trim() != 'null') {
+            _emailController.text = user.email!.trim();
+          }
+          if (user.dob != null && user.dob!.trim().isNotEmpty && user.dob!.trim() != 'null') {
+            final cleaned = UserProfileManager.formatCleanDob(user.dob);
+            if (cleaned.isNotEmpty) {
+              _dobController.text = cleaned;
+            }
+          }
+          if (user.gender != null && user.gender!.trim().isNotEmpty && user.gender!.trim() != 'null') {
+            final normalized = UserProfileManager.normalizeGender(user.gender);
+            if (normalized != null) {
+              _selectedGender = normalized;
+            }
+          }
+          if (_experienceController.text.isEmpty && user.experienceYears != null) {
+            _experienceController.text = user.experienceYears.toString();
+          }
+          if (_selectedSpecialization == null && user.specialization != null && user.specialization!.isNotEmpty) {
+            _selectedSpecialization = user.specialization;
+          }
+          if (_locationController.text.isEmpty && user.address != null && user.address!.isNotEmpty) {
+            _locationController.text = user.address!;
+          }
+          if (_districtController.text.isEmpty && user.city != null && user.city!.isNotEmpty) {
+            _districtController.text = user.city!;
+          }
+          if (_latitude == null && user.latitude != null) {
+            _latitude = user.latitude;
+          }
+          if (_longitude == null && user.longitude != null) {
+            _longitude = user.longitude;
+          }
+          if (!_hasProfilePhoto && user.profilePhotoUrl != null && user.profilePhotoUrl!.isNotEmpty) {
+            _hasProfilePhoto = true;
+          }
+        });
+      }
+    } catch (_) {}
   }
 
   void _onFieldChanged() {
@@ -245,20 +352,22 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                       try {
                         final XFile? photo = await _picker.pickImage(
                           source: ImageSource.camera,
-                          imageQuality: 85,
+                          maxWidth: 800,
+                          maxHeight: 800,
+                          imageQuality: 70,
                         );
-                        if (photo != null) {
+                        if (photo != null && mounted) {
                           final file = File(photo.path);
-                          setState(() {
-                            _profileImageFile = file;
-                            _hasProfilePhoto = true;
-                          });
-                          UserProfileManager.instance.setProfileImage(file);
+                          if (file.existsSync()) {
+                            setState(() {
+                              _profileImageFile = file;
+                              _hasProfilePhoto = true;
+                            });
+                            UserProfileManager.instance.setProfileImage(file);
+                          }
                         }
                       } catch (e) {
-                        setState(() {
-                          _hasProfilePhoto = true;
-                        });
+                        debugPrint('Registration Step 1 camera error: $e');
                       }
                     },
                   ),
@@ -271,20 +380,25 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                       try {
                         final XFile? image = await _picker.pickImage(
                           source: ImageSource.gallery,
-                          imageQuality: 85,
+                          maxWidth: 800,
+                          maxHeight: 800,
+                          imageQuality: 70,
                         );
-                        if (image != null) {
+                        if (image != null && mounted) {
                           final file = File(image.path);
-                          setState(() {
-                            _profileImageFile = file;
-                            _hasProfilePhoto = true;
-                          });
-                          UserProfileManager.instance.setProfileImage(file);
+                          if (file.existsSync()) {
+                            debugPrint('========== IMAGE UPLOAD DEBUG ==========');
+                            debugPrint('Step 1 Photo picked from Gallery: ${file.path}');
+                            debugPrint('=========================================');
+                            setState(() {
+                              _profileImageFile = file;
+                              _hasProfilePhoto = true;
+                            });
+                            UserProfileManager.instance.setProfileImage(file);
+                          }
                         }
                       } catch (e) {
-                        setState(() {
-                          _hasProfilePhoto = true;
-                        });
+                        debugPrint('Registration Step 1 gallery error: $e');
                       }
                     },
                   ),
@@ -387,8 +501,8 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
         fullName: _fullNameController.text.trim(),
         phoneNumber: widget.phoneNumber,
         email: _emailController.text.trim(),
-        dob: _dobController.text.trim(),
-        gender: _selectedGender,
+        dob: UserProfileManager.formatCleanDob(_dobController.text.trim()),
+        gender: UserProfileManager.normalizeGender(_selectedGender) ?? _selectedGender,
         experience: _experienceController.text.trim(),
         specialization: _selectedSpecialization,
         country: _countryController.text.trim(),
@@ -396,6 +510,8 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
         district: _districtController.text.trim(),
         area: _areaController.text.trim(),
         location: _locationController.text.trim(),
+        latitude: _latitude,
+        longitude: _longitude,
       );
 
       try {
@@ -403,13 +519,16 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
         final success = await ProfileRepositoryImpl().updateProfile(
           UpdateProfileRequest(
             fullName: _fullNameController.text.trim(),
-            gender: _selectedGender ?? 'Female',
-            dob: _dobController.text.trim(),
+            email: _emailController.text.trim(),
+            gender: UserProfileManager.normalizeGender(_selectedGender) ?? _selectedGender ?? 'Female',
+            dob: UserProfileManager.formatCleanDob(_dobController.text.trim()),
             specialization: _selectedSpecialization ?? 'General Care',
             experienceYears: _experienceController.text.trim(),
             address: _locationController.text.trim(),
             city: _districtController.text.trim(),
             pincode: '500001',
+            latitude: _latitude,
+            longitude: _longitude,
           ),
           profilePhoto: _profileImageFile,
         );
@@ -564,6 +683,8 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
       final details = await LocationService.instance.fetchCurrentLocationDetails();
       if (details != null && mounted) {
         setState(() {
+          _latitude = details.latitude;
+          _longitude = details.longitude;
           if (details.country.isNotEmpty) _countryController.text = details.country;
           if (details.state.isNotEmpty) _stateController.text = details.state;
           if (details.district.isNotEmpty) _districtController.text = details.district;
@@ -571,13 +692,28 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
           if (details.formattedAddress.isNotEmpty) _locationController.text = details.formattedAddress;
         });
 
+        // Also update UserProfileManager immediately
+        UserProfileManager.instance.updateProfileDetails(
+          latitude: details.latitude,
+          longitude: details.longitude,
+          country: details.country,
+          state: details.state,
+          district: details.district,
+          area: details.area,
+          location: details.formattedAddress,
+        );
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Row(
+            content: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.white, size: 20),
-                SizedBox(width: 8),
-                Expanded(child: Text('Current location details fetched successfully!')),
+                const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'GPS Location (${details.latitude.toStringAsFixed(4)}, ${details.longitude.toStringAsFixed(4)}) fetched successfully!',
+                  ),
+                ),
               ],
             ),
             backgroundColor: const Color(0xFF0052FF),
@@ -616,12 +752,17 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
     final result = await Navigator.push<LocationDetails>(
       context,
       MaterialPageRoute(
-        builder: (context) => const MapPickerScreen(),
+        builder: (context) => MapPickerScreen(
+          initialLat: _latitude ?? UserProfileManager.instance.latitude ?? 17.385044,
+          initialLng: _longitude ?? UserProfileManager.instance.longitude ?? 78.486671,
+        ),
       ),
     );
 
     if (result != null && mounted) {
       setState(() {
+        _latitude = result.latitude;
+        _longitude = result.longitude;
         if (result.country.isNotEmpty) _countryController.text = result.country;
         if (result.state.isNotEmpty) _stateController.text = result.state;
         if (result.district.isNotEmpty) _districtController.text = result.district;
@@ -629,13 +770,28 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
         if (result.formattedAddress.isNotEmpty) _locationController.text = result.formattedAddress;
       });
 
+      // Also update UserProfileManager immediately
+      UserProfileManager.instance.updateProfileDetails(
+        latitude: result.latitude,
+        longitude: result.longitude,
+        country: result.country,
+        state: result.state,
+        district: result.district,
+        area: result.area,
+        location: result.formattedAddress,
+      );
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Row(
+          content: Row(
             children: [
-              Icon(Icons.location_on, color: Colors.white, size: 20),
-              SizedBox(width: 8),
-              Expanded(child: Text('Location details updated from Google Map!')),
+              const Icon(Icons.location_on, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Location (${result.latitude.toStringAsFixed(4)}, ${result.longitude.toStringAsFixed(4)}) selected from Map!',
+                ),
+              ),
             ],
           ),
           backgroundColor: const Color(0xFFFF5C00),
@@ -646,25 +802,43 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
     }
   }
 
+  void _handleBack() {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const PhoneNumberScreen()),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final progress = _calculateProgress();
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFFCFCFD),
-      appBar: AppBar(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          _handleBack();
+        }
+      },
+      child: Scaffold(
         backgroundColor: const Color(0xFFFCFCFD),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            color: Color(0xFF0F172A),
-            size: 20,
+        appBar: AppBar(
+          backgroundColor: const Color(0xFFFCFCFD),
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: const Icon(
+              Icons.arrow_back_ios_new,
+              color: Color(0xFF0F172A),
+              size: 20,
+            ),
+            onPressed: _handleBack,
           ),
-          onPressed: () => Navigator.pop(context),
         ),
-      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -818,7 +992,7 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                                         ),
                                       ],
                                     ),
-                                    child: _hasProfilePhoto && _profileImageFile != null
+                                    child: _profileImageFile != null
                                         ? ClipOval(
                                             child: Image.file(
                                               _profileImageFile!,
@@ -827,27 +1001,44 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                                               fit: BoxFit.cover,
                                             ),
                                           )
-                                        : _hasProfilePhoto
+                                        : (UserProfileManager.instance.fullProfilePhotoUrl != null &&
+                                                UserProfileManager.instance.fullProfilePhotoUrl!.isNotEmpty)
                                             ? ClipOval(
-                                                child: Container(
-                                                  color: const Color(0x1A0052FF),
-                                                  child: const Column(
-                                                    mainAxisAlignment: MainAxisAlignment.center,
-                                                    children: [
-                                                      Icon(
-                                                        Icons.person_rounded,
-                                                        size: 58,
-                                                        color: Color(0xFF0052FF),
-                                                      ),
-                                                    ],
+                                                child: Image.network(
+                                                  UserProfileManager.instance.fullProfilePhotoUrl!,
+                                                  width: 100,
+                                                  height: 100,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (context, error, stackTrace) =>
+                                                      const Icon(
+                                                    Icons.person_rounded,
+                                                    size: 58,
+                                                    color: Color(0xFF0052FF),
                                                   ),
                                                 ),
                                               )
-                                            : const Icon(
-                                                Icons.person_outline_rounded,
-                                                size: 48,
-                                                color: Color(0xFF94A3B8),
-                                              ),
+                                            : _hasProfilePhoto
+                                                ? ClipOval(
+                                                    child: Container(
+                                                      color: const Color(0x1A0052FF),
+                                                      child: const Column(
+                                                        mainAxisAlignment:
+                                                            MainAxisAlignment.center,
+                                                        children: [
+                                                          Icon(
+                                                            Icons.person_rounded,
+                                                            size: 58,
+                                                            color: Color(0xFF0052FF),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  )
+                                                : const Icon(
+                                                    Icons.person_outline_rounded,
+                                                    size: 48,
+                                                    color: Color(0xFF94A3B8),
+                                                  ),
                                   ),
                                   // Camera badge button
                                   Container(
@@ -1222,6 +1413,33 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                           ),
                         ],
                       ),
+                      if (_latitude != null && _longitude != null) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0FDF4),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFF86EFAC)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.gps_fixed_rounded, color: Color(0xFF16A34A), size: 16),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'GPS Coordinates: ${_latitude!.toStringAsFixed(5)}, ${_longitude!.toStringAsFixed(5)} (Ready)',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF15803D),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 16),
 
                       // Divider with subtitle
@@ -1385,11 +1603,13 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildGenderOption(String gender, IconData icon) {
-    final isSelected = _selectedGender == gender;
+    final isSelected = _selectedGender != null &&
+        _selectedGender!.trim().toLowerCase() == gender.trim().toLowerCase();
     return GestureDetector(
       onTap: () {
         setState(() {

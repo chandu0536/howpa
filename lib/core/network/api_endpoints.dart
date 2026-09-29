@@ -18,6 +18,8 @@ class ApiEndpoints {
 
   // 4. Requests & Visit Lifecycle
   static String get requests => '$baseUrl/api/nurse/requests';
+  static String get requestsAccept => '$baseUrl/api/nurse/requests/accept';
+  static String get requestsReject => '$baseUrl/api/nurse/requests/reject';
   static String get visits => '$baseUrl/api/nurse/visits';
   static String get vitals => '$baseUrl/api/nurse/vitals';
   static String get reports => '$baseUrl/api/nurse/reports';
@@ -26,6 +28,7 @@ class ApiEndpoints {
   // 5. Wallet, Payouts & Settings
   static String get earnings => '$baseUrl/api/nurse/earnings';
   static String get wallet => '$baseUrl/api/nurse/wallet';
+  static String get cares => '$baseUrl/api/nurse/cares';
   static String get specializations => '$baseUrl/api/nurse/specializations';
   static String get settings => '$baseUrl/api/nurse/settings';
 

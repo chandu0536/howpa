@@ -4,6 +4,7 @@ import 'package:howpa_nurse/core/network/token_storage.dart';
 import 'package:howpa_nurse/features/profile/data/repositories/profile_repository.dart';
 import 'package:howpa_nurse/features/home/presentation/screens/nurse_dashboard_screen.dart';
 import 'registration_step1_screen.dart';
+import 'registration_step2_screen.dart';
 import 'verification_in_progress_screen.dart';
 import 'onboarding_screen.dart';
 
@@ -67,15 +68,24 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
         if (!mounted) return;
 
         if (profile != null) {
-          if (profile.isApproved) {
+          final bool hasFullName = profile.fullName != null && profile.fullName!.trim().isNotEmpty;
+          final phone = profile.phone.isNotEmpty ? profile.phone : (await TokenStorage.getPhone() ?? '');
+
+          final isApproved = profile.isApproved;
+          final isProfileCompleted = profile.isProfileCompleted && hasFullName;
+          final isKycSubmitted = profile.isKycSubmitted;
+
+          if (isApproved) {
             _navigateTo(const NurseDashboardScreen());
             return;
-          } else if (profile.isPending || profile.isKycSubmitted || profile.isProfileCompleted) {
-            _navigateTo(VerificationInProgressScreen(registeredPhone: profile.phone));
+          } else if (!isProfileCompleted) {
+            _navigateTo(RegistrationStep1Screen(phoneNumber: phone));
+            return;
+          } else if (!isKycSubmitted) {
+            _navigateTo(RegistrationStep2Screen(phoneNumber: phone));
             return;
           } else {
-            final phone = await TokenStorage.getPhone() ?? '+91 9876543210';
-            _navigateTo(RegistrationStep1Screen(phoneNumber: phone));
+            _navigateTo(VerificationInProgressScreen(registeredPhone: phone));
             return;
           }
         }

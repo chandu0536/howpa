@@ -19,10 +19,13 @@ class NotificationsRepositoryImpl implements NotificationsRepository {
   Future<List<NurseNotificationItem>> getNotifications() async {
     try {
       final response = await _client.get(ApiEndpoints.notifications);
-      if (response != null && response['data'] is List) {
-        return (response['data'] as List)
-            .map((item) => NurseNotificationItem.fromJson(item as Map<String, dynamic>))
-            .toList();
+      if (response != null && response is Map<String, dynamic>) {
+        final listData = response['notifications'] ?? response['data'];
+        if (listData is List) {
+          return listData
+              .map((item) => NurseNotificationItem.fromJson(item as Map<String, dynamic>))
+              .toList();
+        }
       }
     } catch (_) {}
     return [];
@@ -31,7 +34,7 @@ class NotificationsRepositoryImpl implements NotificationsRepository {
   @override
   Future<bool> markAllAsRead() async {
     try {
-      final response = await _client.patch(ApiEndpoints.notifications, body: {'all': true});
+      final response = await _client.patch(ApiEndpoints.notifications, body: {'markAll': true, 'all': true});
       if (response is Map && response['success'] == false) {
         return false;
       }

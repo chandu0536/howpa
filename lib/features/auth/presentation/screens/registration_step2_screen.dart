@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:howpa_nurse/core/network/api_exceptions.dart';
 import 'package:howpa_nurse/core/services/user_profile_manager.dart';
 import 'package:howpa_nurse/features/profile/data/repositories/profile_repository.dart';
+import 'package:howpa_nurse/features/auth/presentation/screens/registration_step1_screen.dart';
 import 'package:howpa_nurse/features/auth/presentation/screens/verification_in_progress_screen.dart';
 
 class RegistrationStep2Screen extends StatefulWidget {
@@ -27,6 +28,7 @@ class DocumentItem {
   final String description;
   final IconData icon;
   String? uploadedFileName;
+  String? remoteUrl;
   File? file;
   bool isUploaded;
 
@@ -37,6 +39,7 @@ class DocumentItem {
     required this.description,
     required this.icon,
     this.uploadedFileName,
+    this.remoteUrl,
     this.file,
     this.isUploaded = false,
   });
@@ -45,37 +48,87 @@ class DocumentItem {
 class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
+  bool _isFetchingDocs = false;
 
   final List<DocumentItem> _documents = [
     DocumentItem(
       id: 'nursing_cert',
       title: 'Nursing Certificate',
-      description: 'Upload clear certificate photo or PDF',
+      description: 'Upload nursing degree or council registration',
       icon: Icons.card_membership_rounded,
     ),
     DocumentItem(
-      id: 'aadhaar_card',
-      title: 'Aadhaar Card',
-      subtitleTag: '(front & back)',
-      description: 'Upload front and back side document',
+      id: 'aadhaar_front',
+      title: 'Aadhaar Card Front',
+      description: 'Upload front side of your Aadhaar card',
       icon: Icons.badge_outlined,
     ),
     DocumentItem(
-      id: 'govt_id',
-      title: 'Government ID Proof',
-      subtitleTag: '(optional alt)',
-      description: 'Upload any one government ID',
-      icon: Icons.shield_outlined,
-    ),
-    DocumentItem(
-      id: 'recent_photo',
-      title: 'Recent Photograph',
-      description: 'Upload your recent passport size photo',
-      icon: Icons.person_outline_rounded,
+      id: 'aadhaar_back',
+      title: 'Aadhaar Card Back',
+      description: 'Upload back side of your Aadhaar card with address',
+      icon: Icons.flip_to_back_rounded,
     ),
   ];
 
   int get _uploadedCount => _documents.where((doc) => doc.isUploaded).length;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchExistingDocuments();
+  }
+
+  Future<void> _fetchExistingDocuments() async {
+    setState(() => _isFetchingDocs = true);
+    try {
+      final docStatus = await ProfileRepositoryImpl().getDocumentsStatus();
+      if (!mounted) return;
+
+      setState(() {
+        for (final doc in _documents) {
+          if (doc.id == 'nursing_cert' && docStatus.isNursingCertUploaded) {
+            doc.isUploaded = true;
+            doc.remoteUrl = docStatus.nursingCertUrl;
+            doc.uploadedFileName = _getCleanFileName(docStatus.nursingCertUrl, 'Nursing Certificate (Uploaded)');
+          } else if (doc.id == 'aadhaar_front' && docStatus.isAadhaarFrontUploaded) {
+            doc.isUploaded = true;
+            doc.remoteUrl = docStatus.aadhaarFrontUrl;
+            doc.uploadedFileName = _getCleanFileName(docStatus.aadhaarFrontUrl, 'Aadhaar Front (Uploaded)');
+          } else if (doc.id == 'aadhaar_back' && docStatus.isAadhaarBackUploaded) {
+            doc.isUploaded = true;
+            doc.remoteUrl = docStatus.aadhaarBackUrl;
+            doc.uploadedFileName = _getCleanFileName(docStatus.aadhaarBackUrl, 'Aadhaar Back (Uploaded)');
+          }
+        }
+      });
+    } catch (e) {
+      debugPrint('Error fetching documents in Step 2: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isFetchingDocs = false);
+      }
+    }
+  }
+
+  String _getCleanFileName(String? urlOrKey, String fallback) {
+    if (urlOrKey == null || urlOrKey.trim().isEmpty || urlOrKey == 'null') return fallback;
+    try {
+      final uri = Uri.tryParse(urlOrKey);
+      if (uri != null && uri.pathSegments.isNotEmpty) {
+        final last = uri.pathSegments.last;
+        if (last.isNotEmpty && !last.contains('?')) return last;
+        if (last.contains('?')) return last.split('?').first;
+      }
+    } catch (_) {}
+    if (urlOrKey.contains('/')) {
+      final lastPart = urlOrKey.split('/').last;
+      if (lastPart.isNotEmpty) {
+        return lastPart.contains('?') ? lastPart.split('?').first : lastPart;
+      }
+    }
+    return fallback;
+  }
 
   void _handleUpload(DocumentItem doc) {
     showModalBottomSheet(
@@ -128,14 +181,18 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
                       try {
                         final XFile? photo = await _picker.pickImage(
                           source: ImageSource.camera,
-                          imageQuality: 85,
+                          maxWidth: 800,
+                          maxHeight: 800,
+                          imageQuality: 70,
                         );
-                        if (photo != null) {
+                        if (photo != null && mounted) {
                           final file = File(photo.path);
-                          _completeUpload(doc, photo.name, file);
+                          if (file.existsSync()) {
+                            _completeUpload(doc, photo.name, file);
+                          }
                         }
                       } catch (e) {
-                        // ignore error
+                        debugPrint('Registration Step 2 camera error: $e');
                       }
                     },
                   ),
@@ -148,14 +205,18 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
                       try {
                         final XFile? image = await _picker.pickImage(
                           source: ImageSource.gallery,
-                          imageQuality: 85,
+                          maxWidth: 800,
+                          maxHeight: 800,
+                          imageQuality: 70,
                         );
-                        if (image != null) {
+                        if (image != null && mounted) {
                           final file = File(image.path);
-                          _completeUpload(doc, image.name, file);
+                          if (file.existsSync()) {
+                            _completeUpload(doc, image.name, file);
+                          }
                         }
                       } catch (e) {
-                        // ignore error
+                        debugPrint('Registration Step 2 gallery error: $e');
                       }
                     },
                   ),
@@ -294,22 +355,15 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
     });
 
     try {
-      final nursingCertDoc = _documents
-          .firstWhere((d) => d.id == 'nursing_cert', orElse: () => _documents[0]);
-      final aadhaarDoc = _documents
-          .firstWhere((d) => d.id == 'aadhaar_card', orElse: () => _documents[1]);
-      final govtIdDoc = _documents.where((d) => d.id == 'govt_id').firstOrNull;
-      final recentPhotoDoc = _documents.where((d) => d.id == 'recent_photo').firstOrNull;
-
-      if (recentPhotoDoc?.file != null) {
-        UserProfileManager.instance.setProfileImage(recentPhotoDoc!.file);
-      }
+      final nursingCertDoc = _documents.where((d) => d.id == 'nursing_cert').firstOrNull;
+      final aadhaarFrontDoc = _documents.where((d) => d.id == 'aadhaar_front').firstOrNull;
+      final aadhaarBackDoc = _documents.where((d) => d.id == 'aadhaar_back').firstOrNull;
 
       final success = await ProfileRepositoryImpl().uploadKycDocuments(
-        nursingCertificate: nursingCertDoc.file,
-        aadhaarFront: aadhaarDoc.file,
-        govtId: govtIdDoc?.file,
-        recentPhoto: recentPhotoDoc?.file,
+        nursingCertificate: nursingCertDoc?.file,
+        aadhaarFront: aadhaarFrontDoc?.file,
+        aadhaarBack: aadhaarBackDoc?.file,
+        recentPhoto: UserProfileManager.instance.profileImageFile,
       );
 
       if (!mounted) return;
@@ -319,6 +373,8 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
         for (final doc in _documents) {
           if (doc.file != null && doc.file!.existsSync()) {
             uploadedDocPreviews[doc.id] = doc.file!.path;
+          } else if (doc.remoteUrl != null && doc.remoteUrl!.isNotEmpty) {
+            uploadedDocPreviews[doc.id] = doc.remoteUrl!;
           }
         }
 
@@ -391,25 +447,45 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
     }
   }
 
+  void _handleBack() {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RegistrationStep1Screen(phoneNumber: widget.phoneNumber),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final step2Progress = _uploadedCount / _documents.length;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFFCFCFD),
-      appBar: AppBar(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          _handleBack();
+        }
+      },
+      child: Scaffold(
         backgroundColor: const Color(0xFFFCFCFD),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            color: Color(0xFF0F172A),
-            size: 20,
+        appBar: AppBar(
+          backgroundColor: const Color(0xFFFCFCFD),
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: const Icon(
+              Icons.arrow_back_ios_new,
+              color: Color(0xFF0F172A),
+              size: 20,
+            ),
+            onPressed: _handleBack,
           ),
-          onPressed: () => Navigator.pop(context),
         ),
-      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -491,6 +567,12 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
               ),
             ),
             const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+            if (_isFetchingDocs)
+              const LinearProgressIndicator(
+                minHeight: 2,
+                color: Color(0xFFFF5C00),
+                backgroundColor: Colors.transparent,
+              ),
 
             // Scrollable Body
             Expanded(
@@ -662,8 +744,9 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildDocumentCard(DocumentItem doc) {
     return GestureDetector(
@@ -690,8 +773,8 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
           children: [
             // Left Icon Container
             Container(
-              width: 35,
-              height: 35,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 color: doc.isUploaded ? const Color(0x1A0052FF) : const Color(0xFFEFF6FF),
                 borderRadius: BorderRadius.circular(12),
@@ -699,11 +782,11 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
               child: Icon(
                 doc.isUploaded ? Icons.check_circle_rounded : doc.icon,
                 color: const Color(0xFF0052FF),
-                size: 15,
+                size: 22,
               ),
             ),
 
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
 
             // Middle Document Details
             Expanded(
@@ -716,7 +799,7 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
                         child: Text(
                           doc.title,
                           style: const TextStyle(
-                            fontSize: 10,
+                            fontSize: 14,
                             fontWeight: FontWeight.bold,
                             color: Color(0xFF0F172A),
                           ),
@@ -730,7 +813,7 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
                   Text(
                     doc.isUploaded ? (doc.uploadedFileName ?? 'Uploaded') : doc.description,
                     style: TextStyle(
-                      fontSize: 9,
+                      fontSize: 12,
                       color: doc.isUploaded ? const Color(0xFF0052FF) : const Color(0xFF64748B),
                       fontWeight: doc.isUploaded ? FontWeight.w600 : FontWeight.normal,
                     ),

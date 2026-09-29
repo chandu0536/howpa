@@ -15,6 +15,7 @@ class BankDetails {
         'accountNumber': accountNumber,
         'ifscCode': ifscCode,
         'bankName': bankName,
+        'accountName': accountHolderName,
         'accountHolderName': accountHolderName,
       };
 
@@ -23,7 +24,7 @@ class BankDetails {
       accountNumber: json['accountNumber'] as String? ?? '',
       ifscCode: json['ifscCode'] as String? ?? '',
       bankName: json['bankName'] as String? ?? '',
-      accountHolderName: json['accountHolderName'] as String? ?? '',
+      accountHolderName: json['accountName'] as String? ?? json['accountHolderName'] as String? ?? '',
     );
   }
 }
@@ -57,11 +58,35 @@ class WalletSummary {
   });
 
   factory WalletSummary.fromJson(Map<String, dynamic> json) {
+    final wallet = json['wallet'] is Map<String, dynamic>
+        ? json['wallet'] as Map<String, dynamic>
+        : (json['data'] is Map<String, dynamic> ? json['data'] as Map<String, dynamic> : json);
+    final analytics = json['analytics'] is Map<String, dynamic> ? json['analytics'] as Map<String, dynamic> : null;
+
+    final balance = (wallet['availableBalance'] as num?)?.toDouble() ??
+        (wallet['walletBalance'] as num?)?.toDouble() ??
+        (wallet['totalBalance'] as num?)?.toDouble() ??
+        (analytics?['availableBalance'] as num?)?.toDouble() ??
+        0.0;
+
+    final todayOrWeekEarnings = (wallet['todayEarnings'] as num?)?.toDouble() ??
+        (analytics?['todayEarnings'] as num?)?.toDouble() ??
+        (wallet['thisWeekEarnings'] as num?)?.toDouble() ??
+        0.0;
+
+    final pending = (wallet['pendingSettlement'] as num?)?.toDouble() ??
+        (wallet['pendingWithdrawals'] as num?)?.toDouble() ??
+        0.0;
+
+    final withdrawn = (wallet['totalWithdrawn'] as num?)?.toDouble() ??
+        (wallet['withdrawn'] as num?)?.toDouble() ??
+        0.0;
+
     return WalletSummary(
-      totalBalance: (json['totalBalance'] as num?)?.toDouble() ?? 0.0,
-      thisWeekEarnings: (json['thisWeekEarnings'] as num?)?.toDouble() ?? 0.0,
-      pendingWithdrawals: (json['pendingWithdrawals'] as num?)?.toDouble() ?? 0.0,
-      totalWithdrawn: (json['totalWithdrawn'] as num?)?.toDouble() ?? 0.0,
+      totalBalance: balance,
+      thisWeekEarnings: todayOrWeekEarnings,
+      pendingWithdrawals: pending,
+      totalWithdrawn: withdrawn,
     );
   }
 }
@@ -77,6 +102,8 @@ class DeviceSettingsRequest {
 
   Map<String, dynamic> toJson() => {
         'deviceToken': deviceToken,
+        'token': deviceToken,
         'deviceType': deviceType,
+        'platform': deviceType.toUpperCase(),
       };
 }

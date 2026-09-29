@@ -31,6 +31,7 @@ class NurseUser {
   final String id;
   final String phone;
   final String? fullName;
+  final String? email;
   final String? gender;
   final String? dob;
   final String? specialization;
@@ -53,6 +54,7 @@ class NurseUser {
     required this.id,
     required this.phone,
     this.fullName,
+    this.email,
     this.gender,
     this.dob,
     this.specialization,
@@ -74,37 +76,32 @@ class NurseUser {
 
   bool get isApproved {
     final s = approvalStatus?.trim().toUpperCase();
-    final a = accountStatus?.trim().toUpperCase();
-    return isVerified ||
+    return (isVerified && s != 'PENDING' && s != 'UNDER_REVIEW' && s != 'IN_REVIEW' && s != 'SUBMITTED') ||
         s == 'APPROVED' ||
         s == 'VERIFIED' ||
         s == 'ACTIVE' ||
         s == 'TRUE' ||
-        s == '1' ||
-        a == 'APPROVED' ||
-        a == 'VERIFIED' ||
-        a == 'ACTIVE' ||
-        a == 'TRUE' ||
-        a == '1';
+        s == '1';
   }
 
   bool get isRejected {
     final s = approvalStatus?.trim().toUpperCase();
     final a = accountStatus?.trim().toUpperCase();
-    return s == 'REJECTED' || a == 'REJECTED';
+    return s == 'REJECTED' || a == 'REJECTED' || s == 'BLOCKED' || a == 'BLOCKED';
   }
 
   bool get isPending {
     if (isApproved || isRejected) return false;
     final s = approvalStatus?.trim().toUpperCase();
     final a = accountStatus?.trim().toUpperCase();
-    return s == 'PENDING' ||
+    final isPendingStatus = s == 'PENDING' ||
         s == 'UNDER_REVIEW' ||
         s == 'SUBMITTED' ||
         s == 'IN_REVIEW' ||
+        s == 'REVIEW' ||
         a == 'PENDING' ||
-        isKycSubmitted ||
-        isProfileCompleted;
+        a == 'UNDER_REVIEW';
+    return isProfileCompleted && isKycSubmitted && isPendingStatus;
   }
 
   factory NurseUser.fromJson(Map<String, dynamic> json) {
@@ -122,7 +119,6 @@ class NurseUser {
 
     final rawAccStatus = json['accountStatus'] ?? json['account_status'];
     final accStatus = rawAccStatus?.toString();
-    final accStatusUpper = accStatus?.trim().toUpperCase();
 
     // Check all possible boolean/flag fields
     final bool isApprovedFlag = json['isApproved'] == true ||
@@ -145,14 +141,128 @@ class NurseUser {
         json['verified'] == 1 ||
         json['verified'] == 'true';
 
-    final bool verified = isApprovedFlag ||
-        isVerifiedFlag ||
-        statusUpper == 'APPROVED' ||
+    final bool verified = statusUpper == 'APPROVED' ||
         statusUpper == 'VERIFIED' ||
-        statusUpper == 'ACTIVE' ||
-        accStatusUpper == 'APPROVED' ||
-        accStatusUpper == 'VERIFIED' ||
-        accStatusUpper == 'ACTIVE';
+        (isApprovedFlag && statusUpper != 'PENDING' && statusUpper != 'UNDER_REVIEW') ||
+        (isVerifiedFlag && statusUpper != 'PENDING' && statusUpper != 'UNDER_REVIEW');
+
+    final rawPhoto = json['profilePhotoUrl'] ??
+        json['profile_photo_url'] ??
+        json['profilePhoto'] ??
+        json['profile_photo'] ??
+        json['avatarUrl'] ??
+        json['avatar_url'] ??
+        json['avatar'] ??
+        json['photoUrl'] ??
+        json['photo_url'] ??
+        json['photo'] ??
+        json['image'] ??
+        json['profileImage'] ??
+        json['profile_image'] ??
+        (json['documents'] is Map ? (json['documents']['recentPhoto'] ?? json['documents']['avatar'] ?? json['documents']['photo']) : null);
+    final photoStr = rawPhoto is Map ? (rawPhoto['url'] ?? rawPhoto['key'])?.toString() : rawPhoto?.toString();
+
+    String? nameStr;
+    for (final key in ['fullName', 'full_name', 'name', 'nurse_name', 'nurseName', 'userName', 'user_name']) {
+      final val = json[key]?.toString();
+      if (val != null && val.trim().isNotEmpty && val.trim() != 'null') {
+        nameStr = val.trim();
+        break;
+      }
+    }
+    if (nameStr == null && (json['firstName'] != null || json['first_name'] != null)) {
+      final fn = (json['firstName'] ?? json['first_name'] ?? '').toString().trim();
+      final ln = (json['lastName'] ?? json['last_name'] ?? '').toString().trim();
+      if ('$fn $ln'.trim().isNotEmpty) {
+        nameStr = '$fn $ln'.trim();
+      }
+    }
+
+    String? emailStr = json['email']?.toString() ?? json['emailId']?.toString() ?? json['email_id']?.toString();
+    if (emailStr != null && (emailStr.trim().isEmpty || emailStr.trim() == 'null')) {
+      emailStr = null;
+    }
+
+    String? dobStr = json['dob']?.toString() ?? json['dateOfBirth']?.toString() ?? json['date_of_birth']?.toString();
+    if (dobStr != null && (dobStr.trim().isEmpty || dobStr.trim() == 'null')) {
+      dobStr = null;
+    }
+
+    String? genderStr = json['gender']?.toString() ?? json['sex']?.toString();
+    if (genderStr != null && (genderStr.trim().isEmpty || genderStr.trim() == 'null')) {
+      genderStr = null;
+    }
+
+    // Check if actual documents have non-empty URLs or keys uploaded
+    bool hasActualDocs = false;
+    final docsObj = json['documents'];
+    if (docsObj is Map<String, dynamic>) {
+      for (final val in docsObj.values) {
+        if (val is Map) {
+          final u = val['url']?.toString().trim();
+          final k = val['key']?.toString().trim();
+          if ((u != null && u.isNotEmpty) || (k != null && k.isNotEmpty)) {
+            hasActualDocs = true;
+            break;
+          }
+        } else if (val is String && val.trim().isNotEmpty) {
+          hasActualDocs = true;
+          break;
+        }
+      }
+    } else if (json['nursingCertificate'] != null && json['nursingCertificate'].toString().trim().isNotEmpty) {
+      hasActualDocs = true;
+    } else if (json['aadhaarFront'] != null && json['aadhaarFront'].toString().trim().isNotEmpty) {
+      hasActualDocs = true;
+    }
+
+    final bool hasFullName = nameStr != null && nameStr.trim().isNotEmpty;
+
+    final bool isProfileCompletedExplicit = json['isProfileCompleted'] == true ||
+        json['is_profile_completed'] == true ||
+        json['profileCompleted'] == true ||
+        json['isProfileComplete'] == true;
+
+    final bool isKycSubmittedExplicit = json['isKycSubmitted'] == true ||
+        json['is_kyc_submitted'] == true ||
+        json['kycSubmitted'] == true ||
+        json['isKycUploaded'] == true;
+
+    final bool profileCompletedVal = (isProfileCompletedExplicit && hasFullName) ||
+        hasFullName ||
+        hasActualDocs;
+
+    final bool kycSubmittedVal = (isKycSubmittedExplicit && profileCompletedVal) ||
+        hasActualDocs;
+
+    double? lat;
+    final rawLat = json['latitude'] ??
+        json['lat'] ??
+        (json['location'] is Map
+            ? (json['location']['coordinates'] is List
+                ? json['location']['coordinates'][1]
+                : json['location']['latitude'] ?? json['location']['lat'])
+            : null);
+    if (rawLat is num) {
+      lat = rawLat.toDouble();
+    } else if (rawLat is String) {
+      lat = double.tryParse(rawLat);
+    }
+
+    double? lng;
+    final rawLng = json['longitude'] ??
+        json['lng'] ??
+        json['lon'] ??
+        (json['location'] is Map
+            ? (json['location']['coordinates'] is List
+                ? json['location']['coordinates'][0]
+                : json['location']['longitude'] ?? json['location']['lng'] ?? json['location']['lon'])
+            : null);
+    if (rawLng is num) {
+      lng = rawLng.toDouble();
+    } else if (rawLng is String) {
+      lng = double.tryParse(rawLng);
+    }
 
     return NurseUser(
       id: json['_id']?.toString() ?? json['id']?.toString() ?? json['nurseId']?.toString() ?? '',
@@ -161,9 +271,10 @@ class NurseUser {
           json['phoneNumber']?.toString() ??
           json['phone_number']?.toString() ??
           '',
-      fullName: json['fullName'] as String? ?? json['name'] as String? ?? json['nurse_name'] as String?,
-      gender: json['gender'] as String?,
-      dob: json['dob'] as String?,
+      fullName: nameStr,
+      email: emailStr?.trim(),
+      gender: genderStr?.trim(),
+      dob: dobStr?.trim(),
       specialization: json['specialization'] as String?,
       experienceYears: json['experienceYears'] is int
           ? json['experienceYears'] as int
@@ -171,25 +282,16 @@ class NurseUser {
       address: json['address'] as String?,
       city: json['city'] as String?,
       pincode: json['pincode'] as String?,
-      latitude: (json['latitude'] as num?)?.toDouble(),
-      longitude: (json['longitude'] as num?)?.toDouble(),
+      latitude: lat,
+      longitude: lng,
       isOnline: json['isOnline'] as bool? ?? json['is_online'] as bool? ?? true,
       isVerified: verified,
-      isKycSubmitted: json['isKycSubmitted'] as bool? ??
-          json['is_kyc_submitted'] as bool? ??
-          json['kycSubmitted'] as bool? ??
-          false,
-      isProfileCompleted: json['isProfileCompleted'] as bool? ??
-          json['is_profile_completed'] as bool? ??
-          json['profileCompleted'] as bool? ??
-          false,
-      approvalStatus: statusUpper == 'APPROVED' || verified ? 'APPROVED' : status,
+      isKycSubmitted: kycSubmittedVal,
+      isProfileCompleted: profileCompletedVal,
+      approvalStatus: statusUpper == 'APPROVED' || verified ? 'APPROVED' : (status ?? (kycSubmittedVal ? 'PENDING' : null)),
       accountStatus: accStatus,
       role: json['role'] as String?,
-      profilePhotoUrl: json['profilePhotoUrl'] as String? ??
-          json['avatarUrl'] as String? ??
-          json['avatar'] as String? ??
-          json['profile_photo'] as String?,
+      profilePhotoUrl: photoStr,
     );
   }
 

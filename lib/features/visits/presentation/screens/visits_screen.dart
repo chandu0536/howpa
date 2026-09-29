@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:howpa_nurse/features/vitals/presentation/screens/update_vitals_screen.dart';
 import 'package:howpa_nurse/features/vitals/presentation/screens/vitals_screen.dart';
 import 'package:howpa_nurse/features/profile/presentation/screens/profile_screen.dart';
 import 'package:howpa_nurse/core/services/user_profile_manager.dart';
+import 'package:howpa_nurse/core/services/booking_notification_manager.dart';
+import 'package:howpa_nurse/features/visits/data/models/visit_models.dart';
 import 'package:howpa_nurse/features/visits/data/repositories/visits_repository.dart';
 
 // Data models for each tab
@@ -15,6 +18,10 @@ class NewRequestItem {
   final String serviceTag;
   final String time;
   final String avatarUrl;
+  final String phoneNumber;
+  final double? latitude;
+  final double? longitude;
+  final bool femaleNursePreferred;
 
   NewRequestItem({
     required this.id,
@@ -24,6 +31,10 @@ class NewRequestItem {
     required this.serviceTag,
     required this.time,
     required this.avatarUrl,
+    this.phoneNumber = '+91 98765 43210',
+    this.latitude,
+    this.longitude,
+    this.femaleNursePreferred = false,
   });
 }
 
@@ -39,6 +50,11 @@ class TodayVisitItem {
   final bool isArrivalButton;
   final bool hasConfirmedTag;
   final String avatarUrl;
+  final String phoneNumber;
+  final double? latitude;
+  final double? longitude;
+  final bool isVitalsUpdated;
+  final String doctorName;
 
   TodayVisitItem({
     required this.id,
@@ -52,6 +68,11 @@ class TodayVisitItem {
     this.isArrivalButton = false,
     this.hasConfirmedTag = false,
     required this.avatarUrl,
+    this.phoneNumber = '',
+    this.latitude,
+    this.longitude,
+    this.isVitalsUpdated = false,
+    this.doctorName = 'Doctor',
   });
 
   TodayVisitItem copyWith({
@@ -66,6 +87,11 @@ class TodayVisitItem {
     bool? isArrivalButton,
     bool? hasConfirmedTag,
     String? avatarUrl,
+    String? phoneNumber,
+    double? latitude,
+    double? longitude,
+    bool? isVitalsUpdated,
+    String? doctorName,
   }) {
     return TodayVisitItem(
       id: id ?? this.id,
@@ -79,6 +105,11 @@ class TodayVisitItem {
       isArrivalButton: isArrivalButton ?? this.isArrivalButton,
       hasConfirmedTag: hasConfirmedTag ?? this.hasConfirmedTag,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      isVitalsUpdated: isVitalsUpdated ?? this.isVitalsUpdated,
+      doctorName: doctorName ?? this.doctorName,
     );
   }
 }
@@ -126,6 +157,9 @@ class _VisitsScreenState extends State<VisitsScreen> {
   String? _highlightedPatientName;
   bool _isHighlightVisible = false;
   Timer? _blinkTimer;
+  Timer? _autoRefreshTimer;
+  final Set<String> _knownRequestIds = {};
+  bool _isFetchingData = false;
 
   @override
   void initState() {
@@ -136,17 +170,39 @@ class _VisitsScreenState extends State<VisitsScreen> {
       _startHighlightFade();
     }
     _loadVisitsData();
+    // Auto-refresh visits screen every 12 seconds in background
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 12), (_) {
+      if (mounted && !_isSearching && _searchQuery.isEmpty) {
+        _loadVisitsData(isAutoRefresh: true);
+      }
+    });
   }
 
-  Future<void> _loadVisitsData() async {
-    final nearby = await _visitsRepo.getNearbyRequests();
-    final today = await _visitsRepo.getTodayVisits();
-    final completed = await _visitsRepo.getCompletedVisitHistory();
+  Future<void> _loadVisitsData({bool isAutoRefresh = false}) async {
+    if (_isFetchingData) return;
+    if (isAutoRefresh && (_isSearching || _searchQuery.isNotEmpty)) return;
 
-    if (mounted) {
-      setState(() {
-        _newRequests.clear();
-        _newRequests.addAll(nearby.map((r) => NewRequestItem(
+    _isFetchingData = true;
+
+    try {
+      // Execute API calls concurrently in parallel instead of sequentially
+      final results = await Future.wait([
+        _visitsRepo.getNearbyRequests(),
+        _visitsRepo.getTodayVisits(),
+        _visitsRepo.getCompletedVisitHistory(),
+      ]);
+
+      if (!mounted) return;
+
+      final nearby = results[0];
+      final today = results[1];
+      final completed = results[2];
+
+      // Check for newly arrived booking requests to trigger Pop-Up notification
+      NewRequestItem? brandNewRequest;
+
+      final mappedNewRequests = nearby.map((r) {
+        final item = NewRequestItem(
           id: r.id,
           patientName: r.patientName,
           address: r.address,
@@ -154,34 +210,244 @@ class _VisitsScreenState extends State<VisitsScreen> {
           serviceTag: r.serviceTag,
           time: r.time,
           avatarUrl: r.avatarUrl,
-        )));
+          phoneNumber: r.phoneNumber,
+          latitude: r.latitude,
+          longitude: r.longitude,
+          femaleNursePreferred: r.femaleNursePreferred,
+        );
 
-        _todayVisits.clear();
-        _todayVisits.addAll(today.map((t) => TodayVisitItem(
+        if (r.id.isNotEmpty &&
+            !BookingNotificationManager.hasBeenShown(r.id) &&
+            r.status.toUpperCase() != 'COMPLETED' &&
+            r.status.toUpperCase() != 'REJECTED' &&
+            r.status.toUpperCase() != 'CANCELLED') {
+          brandNewRequest ??= item;
+        }
+        _knownRequestIds.add(r.id);
+        return item;
+      }).toList();
+
+      final mappedTodayVisits = today.map((t) {
+        final existingIndex = _todayVisits.indexWhere((existing) => existing.id == t.id);
+        final existingItem = existingIndex != -1 ? _todayVisits[existingIndex] : null;
+
+        String btnText = 'Started';
+        Color accentCol = const Color(0xFF0052FF);
+        bool isArrival = false;
+        bool vitalsUpdated = t.isVitalsUpdated || t.status == 'VITALS_UPDATED';
+
+        if (existingItem != null) {
+          if (existingItem.isVitalsUpdated) vitalsUpdated = true;
+          if (existingItem.buttonText == 'Completed' || vitalsUpdated) {
+            btnText = 'Completed';
+            accentCol = const Color(0xFF10B981);
+          } else if (existingItem.buttonText == 'Update Vitals' || t.status == 'ARRIVED') {
+            btnText = 'Update Vitals';
+            accentCol = const Color(0xFFF59E0B);
+          } else if (existingItem.buttonText == 'Arrival' || t.status == 'STARTED' || t.status == 'ARRIVING') {
+            btnText = 'Arrival';
+            accentCol = const Color(0xFFFF5C00);
+            isArrival = true;
+          }
+        } else {
+          if (t.status == 'ARRIVING' || t.status == 'STARTED') {
+            btnText = 'Arrival';
+            accentCol = const Color(0xFFFF5C00);
+            isArrival = true;
+          } else if (t.status == 'ARRIVED') {
+            btnText = vitalsUpdated ? 'Completed' : 'Update Vitals';
+            accentCol = vitalsUpdated ? const Color(0xFF10B981) : const Color(0xFFF59E0B);
+          } else if (vitalsUpdated) {
+            btnText = 'Completed';
+            accentCol = const Color(0xFF10B981);
+          }
+        }
+
+        return TodayVisitItem(
           id: t.id,
           patientName: t.patientName,
           timeInterval: t.time,
           address: t.address,
           distance: t.distance,
-          accentColor: t.status == 'ARRIVING' ? const Color(0xFFFF5C00) : const Color(0xFF0052FF),
-          timeColor: t.status == 'ARRIVING' ? const Color(0xFFFF5C00) : const Color(0xFF0052FF),
-          buttonText: t.status == 'ARRIVING' ? 'Arrival' : 'Started',
-          isArrivalButton: t.status == 'ARRIVING',
+          accentColor: accentCol,
+          timeColor: accentCol,
+          buttonText: btnText,
+          isArrivalButton: isArrival,
           avatarUrl: t.avatarUrl,
-        )));
+          phoneNumber: t.phoneNumber,
+          latitude: t.latitude,
+          longitude: t.longitude,
+          isVitalsUpdated: vitalsUpdated,
+          doctorName: t.doctorName,
+        );
+      }).toList();
 
-        if (completed.isNotEmpty) {
-          _completedGroups['This Week'] = completed.map((c) => CompletedVisitItem(
-            id: c.id,
-            patientName: c.patientName,
-            dateTime: c.time,
-            duration: c.distance,
-            doctorName: 'Dr. Assigned',
-            address: c.address,
-            avatarUrl: c.avatarUrl,
-          )).toList();
+      // Only invoke setState if data actually changed or if initial load
+      final bool dataChanged = !isAutoRefresh ||
+          _newRequests.length != mappedNewRequests.length ||
+          _todayVisits.length != mappedTodayVisits.length ||
+          _hasDataChanged(mappedNewRequests, mappedTodayVisits);
+
+      if (dataChanged) {
+        setState(() {
+          // Filter out any requests that are already accepted in today's visits
+          final filteredNew = mappedNewRequests.where((r) => !_todayVisits.any((t) => t.id == r.id)).toList();
+          _newRequests.clear();
+          _newRequests.addAll(filteredNew);
+
+          // Preserve locally accepted items if backend filter=today API hasn't synced them yet
+          final mergedTodayMap = <String, TodayVisitItem>{};
+          for (final existing in _todayVisits) {
+            mergedTodayMap[existing.id] = existing;
+          }
+          for (final fetched in mappedTodayVisits) {
+            mergedTodayMap[fetched.id] = fetched;
+          }
+
+          if (!_completedGroups.containsKey('This Week')) {
+            _completedGroups['This Week'] = [];
+          }
+
+          if (completed.isNotEmpty) {
+            final existingCompletedIds = _completedGroups['This Week']!.map((c) => c.id).toSet();
+            for (final c in completed) {
+              if (!existingCompletedIds.contains(c.id)) {
+                _completedGroups['This Week']!.add(CompletedVisitItem(
+                  id: c.id,
+                  patientName: c.patientName,
+                  dateTime: c.time,
+                  duration: c.distance,
+                  doctorName: c.doctorName.isNotEmpty ? c.doctorName : 'Doctor',
+                  address: c.address,
+                  avatarUrl: c.avatarUrl,
+                ));
+              }
+            }
+          }
+
+          // Separate today visits into active visits vs completed visits
+          final activeTodayMap = <String, TodayVisitItem>{};
+          for (final item in mergedTodayMap.values) {
+            if (item.buttonText == 'Completed' || item.isVitalsUpdated) {
+              if (!_completedGroups['This Week']!.any((c) => c.id == item.id)) {
+                _completedGroups['This Week']!.insert(0, CompletedVisitItem(
+                  id: item.id,
+                  patientName: item.patientName,
+                  dateTime: item.timeInterval,
+                  duration: item.distance,
+                  doctorName: item.doctorName.isNotEmpty ? item.doctorName : 'Doctor',
+                  address: item.address,
+                  avatarUrl: item.avatarUrl,
+                ));
+              }
+            } else {
+              activeTodayMap[item.id] = item;
+            }
+          }
+
+          _todayVisits.clear();
+          _todayVisits.addAll(activeTodayMap.values);
+        });
+      }
+
+      // Trigger alert popup notification for new booking
+      if (brandNewRequest != null && !BookingNotificationManager.isPopupShowing) {
+        _showNewBookingAlertNotification(brandNewRequest!);
+      }
+    } catch (_) {
+      // Ignore background refresh network glitches gracefully
+    } finally {
+      _isFetchingData = false;
+    }
+  }
+
+  bool _hasDataChanged(List<NewRequestItem> newReqs, List<TodayVisitItem> todayVisits) {
+    if (newReqs.length != _newRequests.length || todayVisits.length != _todayVisits.length) {
+      return true;
+    }
+    for (int i = 0; i < newReqs.length; i++) {
+      if (newReqs[i].id != _newRequests[i].id) return true;
+    }
+    for (int i = 0; i < todayVisits.length; i++) {
+      if (todayVisits[i].id != _todayVisits[i].id || todayVisits[i].buttonText != _todayVisits[i].buttonText) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _showNewBookingAlertNotification(NewRequestItem item) {
+    if (BookingNotificationManager.isPopupShowing || !mounted) return;
+
+    BookingNotificationManager.showNewBookingDialog(
+      context: context,
+      item: VisitRequestItem(
+        id: item.id,
+        patientName: item.patientName,
+        address: item.address,
+        distance: item.distance,
+        serviceTag: item.serviceTag,
+        time: item.time,
+        avatarUrl: item.avatarUrl,
+        phoneNumber: item.phoneNumber,
+        latitude: item.latitude,
+        longitude: item.longitude,
+      ),
+      onAccept: () async {
+        await _onAcceptRequest(item);
+      },
+      onReject: () async {
+        await _visitsRepo.rejectVisitRequest(item.id);
+        if (mounted) {
+          setState(() {
+            _newRequests.removeWhere((r) => r.id == item.id);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Visit request declined'),
+              backgroundColor: Color(0xFFEF4444),
+            ),
+          );
         }
-      });
+      },
+    );
+  }
+
+  Future<void> _makePhoneCall(String phoneNumber) async {
+    final cleanNumber = phoneNumber.replaceAll(RegExp(r'[^\d+]'), '');
+    final Uri launchUri = Uri(scheme: 'tel', path: cleanNumber);
+    try {
+      if (await canLaunchUrl(launchUri)) {
+        await launchUrl(launchUri);
+      } else {
+        await launchUrl(launchUri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not launch phone dialer: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _openGoogleMaps(double? lat, double? lng, String address) async {
+    Uri mapUri;
+    if (lat != null && lng != null && lat != 0 && lng != 0) {
+      mapUri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+    } else {
+      mapUri = Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}');
+    }
+    try {
+      if (!await launchUrl(mapUri, mode: LaunchMode.externalApplication)) {
+        await launchUrl(mapUri, mode: LaunchMode.platformDefault);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open Google Maps: $e')),
+        );
+      }
     }
   }
 
@@ -199,6 +465,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
     _blinkTimer?.cancel();
     super.dispose();
   }
@@ -237,37 +504,39 @@ class _VisitsScreenState extends State<VisitsScreen> {
   }
 
   Future<void> _onAcceptRequest(NewRequestItem item) async {
-    final success = await _visitsRepo.acceptVisitRequest(item.id);
-    if (!mounted) return;
+    // Instant optimistic UI update (AJAX feel)
+    setState(() {
+      _newRequests.removeWhere((r) => r.id == item.id);
+      
+      _todayVisits.add(TodayVisitItem(
+        id: item.id,
+        patientName: item.patientName,
+        timeInterval: item.time.replaceAll(RegExp(r'Today,\s*'), ''),
+        address: item.address,
+        distance: item.distance,
+        accentColor: const Color(0xFF0052FF),
+        timeColor: const Color(0xFF0052FF),
+        buttonText: 'Started',
+        avatarUrl: item.avatarUrl,
+        phoneNumber: item.phoneNumber,
+        latitude: item.latitude,
+        longitude: item.longitude,
+        isVitalsUpdated: false,
+      ));
 
-    if (success) {
-      setState(() {
-        _newRequests.removeWhere((r) => r.id == item.id);
-        
-        _todayVisits.add(TodayVisitItem(
-          id: item.id,
-          patientName: item.patientName,
-          timeInterval: item.time.replaceAll(RegExp(r'Today,\s*'), ''),
-          address: item.address,
-          distance: item.distance,
-          accentColor: const Color(0xFF0052FF),
-          timeColor: const Color(0xFF0052FF),
-          buttonText: 'Started',
-          avatarUrl: item.avatarUrl,
-        ));
-      });
+      // Automatically switch to Today's Visits tab so user sees accepted request immediately!
+      _selectedTabIndex = 1;
+    });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Visit request accepted!')),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to accept visit request. Please try again.'),
-          backgroundColor: Color(0xFFEF4444),
-        ),
-      );
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Visit request accepted! Moved to Today\'s schedule.'),
+        backgroundColor: Color(0xFF10B981),
+      ),
+    );
+
+    // Sync with backend API in background
+    _visitsRepo.acceptVisitRequest(item.id);
   }
 
   Future<void> _onTodayVisitAction(TodayVisitItem item) async {
@@ -275,79 +544,76 @@ class _VisitsScreenState extends State<VisitsScreen> {
     if (index == -1) return;
 
     if (item.buttonText == 'Started') {
-      final success = await _visitsRepo.updateVisitStatus(item.id, 'STARTED');
-      if (!mounted) return;
-      if (success) {
-        setState(() {
-          _todayVisits[index] = item.copyWith(
-            buttonText: 'Arrival',
-            isArrivalButton: true,
-            accentColor: const Color(0xFFFF5C00),
-            timeColor: const Color(0xFFFF5C00),
-          );
-        });
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to start visit. Please check network connection.'),
-            backgroundColor: Color(0xFFEF4444),
-          ),
+      // Instant UI update to Arrival
+      setState(() {
+        _todayVisits[index] = item.copyWith(
+          buttonText: 'Arrival',
+          isArrivalButton: true,
+          accentColor: const Color(0xFFFF5C00),
+          timeColor: const Color(0xFFFF5C00),
         );
-      }
+      });
+      _visitsRepo.updateVisitStatus(item.id, 'STARTED');
     } else if (item.buttonText == 'Arrival') {
-      final success = await _visitsRepo.updateVisitStatus(item.id, 'ARRIVED');
-      if (!mounted) return;
-      if (success) {
-        setState(() {
-          _todayVisits[index] = item.copyWith(
-            buttonText: 'Update Vitals',
-            isArrivalButton: false,
-            accentColor: const Color(0xFF10B981),
-            timeColor: const Color(0xFF10B981),
-          );
-        });
-        _navigateToUpdateVitals(_todayVisits[index]);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to mark arrival. Please try again.'),
-            backgroundColor: Color(0xFFEF4444),
-          ),
+      // Instant UI update to Update Vitals
+      setState(() {
+        _todayVisits[index] = item.copyWith(
+          buttonText: 'Update Vitals',
+          isArrivalButton: false,
+          accentColor: const Color(0xFFF59E0B),
+          timeColor: const Color(0xFFF59E0B),
         );
-      }
+      });
+      _visitsRepo.updateVisitStatus(item.id, 'ARRIVED');
+      _navigateToUpdateVitals(_todayVisits[index]);
     } else if (item.buttonText == 'Update Vitals') {
       _navigateToUpdateVitals(item);
     } else if (item.buttonText == 'Completed') {
-      final success = await _visitsRepo.updateVisitStatus(item.id, 'COMPLETED');
-      if (!mounted) return;
-      if (success) {
-        setState(() {
-          final completedItem = _todayVisits.removeAt(index);
-          
-          if (!_completedGroups.containsKey('This Week')) {
-            _completedGroups['This Week'] = [];
-          }
-          
-          _completedGroups['This Week']!.insert(0, CompletedVisitItem(
-            id: completedItem.id,
-            patientName: completedItem.patientName,
-            dateTime: 'Today  •  Just now',
-            duration: '30 mins',
-            doctorName: 'Dr. Assigned',
-            address: completedItem.address,
-            avatarUrl: completedItem.avatarUrl,
-          ));
-          
-          _selectedTabIndex = 2;
-        });
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to complete visit. Please try again.'),
-            backgroundColor: Color(0xFFEF4444),
-          ),
-        );
+      // STRICT VITALS GUARD: Patient vitals must be recorded first!
+      if (!item.isVitalsUpdated) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please update patient vitals first to complete this visit!'),
+              backgroundColor: Color(0xFFEF4444),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        _navigateToUpdateVitals(item);
+        return;
       }
+
+      // Vitals updated -> Complete Visit and move to Completed tab
+      setState(() {
+        final completedItem = _todayVisits.removeAt(index);
+        
+        if (!_completedGroups.containsKey('This Week')) {
+          _completedGroups['This Week'] = [];
+        }
+        
+        _completedGroups['This Week']!.insert(0, CompletedVisitItem(
+          id: completedItem.id,
+          patientName: completedItem.patientName,
+          dateTime: 'Today  •  Just now',
+          duration: completedItem.distance,
+          doctorName: 'Dr. Assigned',
+          address: completedItem.address,
+          avatarUrl: completedItem.avatarUrl,
+        ));
+        
+        // Auto switch to Completed tab
+        _selectedTabIndex = 2;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Visit marked as Completed!'),
+          backgroundColor: Color(0xFF10B981),
+        ),
+      );
+
+      _visitsRepo.updateVisitStatus(item.id, 'COMPLETED');
     }
   }
 
@@ -356,6 +622,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => UpdateVitalsScreen(
+          appointmentId: item.id,
           patientName: item.patientName,
           avatarUrl: item.avatarUrl,
         ),
@@ -364,14 +631,37 @@ class _VisitsScreenState extends State<VisitsScreen> {
 
     if (result == true) {
       final idx = _todayVisits.indexWhere((v) => v.id == item.id);
-      if (idx != -1) {
-        setState(() {
-          _todayVisits[idx] = _todayVisits[idx].copyWith(
-            buttonText: 'Completed',
-            accentColor: const Color(0xFF0F766E),
-            timeColor: const Color(0xFF0F766E),
-          );
-        });
+      final completedItem = idx != -1 ? _todayVisits.removeAt(idx) : item;
+
+      setState(() {
+        if (!_completedGroups.containsKey('This Week')) {
+          _completedGroups['This Week'] = [];
+        }
+
+        _completedGroups['This Week']!.removeWhere((c) => c.id == completedItem.id);
+        _completedGroups['This Week']!.insert(0, CompletedVisitItem(
+          id: completedItem.id,
+          patientName: completedItem.patientName,
+          dateTime: 'Today  •  Just now',
+          duration: completedItem.distance,
+          doctorName: completedItem.doctorName.isNotEmpty ? completedItem.doctorName : 'Doctor',
+          address: completedItem.address,
+          avatarUrl: completedItem.avatarUrl,
+        ));
+
+        // Auto switch to Completed tab
+        _selectedTabIndex = 2;
+      });
+
+      _visitsRepo.updateVisitStatus(item.id, 'COMPLETED');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vitals recorded and visit marked as Completed!'),
+            backgroundColor: Color(0xFF10B981),
+          ),
+        );
       }
     }
   }
@@ -444,30 +734,11 @@ class _VisitsScreenState extends State<VisitsScreen> {
                         child: ListenableBuilder(
                           listenable: UserProfileManager.instance,
                           builder: (context, child) {
-                            final hasPhoto = UserProfileManager.instance.hasProfileImage;
-                            final photoFile = UserProfileManager.instance.profileImageFile;
-                            if (hasPhoto && photoFile != null) {
-                              return ClipOval(
-                                child: Image.file(
-                                  photoFile,
-                                  fit: BoxFit.cover,
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                ),
-                              );
-                            }
-                            return ClipOval(
-                              child: Image.network(
-                                'https://images.unsplash.com/photo-1594824813571-215f396469a0?auto=format&fit=crop&q=80&w=200',
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return const Icon(
-                                    Icons.person_rounded,
-                                    color: Colors.white,
-                                    size: 24,
-                                  );
-                                },
-                              ),
+                            return UserProfileManager.instance.buildAvatarWidget(
+                              size: 40,
+                              fallbackBgColor: const Color(0xFF0052FF),
+                              fallbackIconColor: Colors.white,
+                              iconSize: 24,
                             );
                           },
                         ),
@@ -788,6 +1059,8 @@ class _VisitsScreenState extends State<VisitsScreen> {
                   ),
                 )
               : ListView.separated(
+                  physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                  addAutomaticKeepAlives: true,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   itemCount: filtered.length,
                   separatorBuilder: (context, index) => const SizedBox(height: 16),
@@ -829,13 +1102,13 @@ class _VisitsScreenState extends State<VisitsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Top Row: Avatar + Name, Address, Distance
+                      // Top Row: Avatar + Name, Address, Distance + Call Button
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Container(
-                            width: 60,
-                            height: 60,
+                            width: 56,
+                            height: 56,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: const Color(0xFFF1F5F9),
@@ -869,29 +1142,32 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 4),
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Padding(
-                                      padding: EdgeInsets.only(top: 2),
-                                      child: Icon(
-                                        Icons.location_on_rounded,
-                                        size: 14,
-                                        color: Color(0xFF0052FF),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Expanded(
-                                      child: Text(
-                                        item.address,
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Color(0xFF64748B),
-                                          height: 1.3,
+                                GestureDetector(
+                                  onTap: () => _openGoogleMaps(item.latitude, item.longitude, item.address),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Padding(
+                                        padding: EdgeInsets.only(top: 2),
+                                        child: Icon(
+                                          Icons.location_on_rounded,
+                                          size: 14,
+                                          color: Color(0xFF0052FF),
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Text(
+                                          item.address,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Color(0xFF64748B),
+                                            height: 1.3,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                                 const SizedBox(height: 4),
                                 Row(
@@ -915,6 +1191,25 @@ class _VisitsScreenState extends State<VisitsScreen> {
                               ],
                             ),
                           ),
+                          const SizedBox(width: 8),
+                          // Phone Call Circle Button
+                          GestureDetector(
+                            onTap: () => _makePhoneCall(item.phoneNumber),
+                            child: Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFF4ED),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: const Color(0xFFFFEDD5)),
+                              ),
+                              child: const Icon(
+                                Icons.phone_rounded,
+                                color: Color(0xFFFF8A00),
+                                size: 20,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
 
@@ -926,36 +1221,70 @@ class _VisitsScreenState extends State<VisitsScreen> {
                         children: [
                           // Service Tag Pill
                           Flexible(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFF3EC),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: const Color(0xFFFFD4BE), width: 0.8),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.link_rounded,
-                                    size: 13,
-                                    color: Color(0xFFFF5C00),
+                            child: Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFF3EC),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: const Color(0xFFFFD4BE), width: 0.8),
                                   ),
-                                  const SizedBox(width: 4),
-                                  Flexible(
-                                    child: Text(
-                                      item.serviceTag,
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.link_rounded,
+                                        size: 13,
                                         color: Color(0xFFFF5C00),
                                       ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                      const SizedBox(width: 4),
+                                      Flexible(
+                                        child: Text(
+                                          item.serviceTag,
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFFFF5C00),
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (item.femaleNursePreferred)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFDF2F8),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: const Color(0xFFFBCFE8), width: 0.8),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: const [
+                                        Icon(
+                                          Icons.female_rounded,
+                                          size: 13,
+                                          color: Color(0xFFDB2777),
+                                        ),
+                                        SizedBox(width: 3),
+                                        Text(
+                                          'Female Nurse Preferred',
+                                          style: TextStyle(
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFFDB2777),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ],
-                              ),
+                              ],
                             ),
                           ),
 
@@ -1115,6 +1444,8 @@ class _VisitsScreenState extends State<VisitsScreen> {
                   ),
                 )
               : ListView.separated(
+                  physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                  addAutomaticKeepAlives: true,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   itemCount: filtered.length,
                   separatorBuilder: (context, index) => const SizedBox(height: 16),
@@ -1233,7 +1564,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
 
                           // Call Circle Button (Top Right)
                           GestureDetector(
-                            onTap: () {},
+                            onTap: () => _makePhoneCall(item.phoneNumber),
                             child: Container(
                               width: 46,
                               height: 46,
@@ -1260,61 +1591,64 @@ class _VisitsScreenState extends State<VisitsScreen> {
                         children: [
                           // Address & Distance Column
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Padding(
-                                      padding: EdgeInsets.only(top: 2),
-                                      child: Icon(
-                                        Icons.location_on_rounded,
-                                        size: 16,
-                                        color: Color(0xFF0052FF),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Text(
-                                        item.address,
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          color: Color(0xFF475569),
-                                          height: 1.35,
+                            child: GestureDetector(
+                              onTap: () => _openGoogleMaps(item.latitude, item.longitude, item.address),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Padding(
+                                        padding: EdgeInsets.only(top: 2),
+                                        child: Icon(
+                                          Icons.location_on_rounded,
+                                          size: 16,
+                                          color: Color(0xFF0052FF),
                                         ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Row(
-                                  children: [
-                                    const SizedBox(width: 2),
-                                    const Icon(
-                                      Icons.near_me_rounded,
-                                      size: 14,
-                                      color: Color(0xFF0052FF),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      item.distance,
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          item.address,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Color(0xFF475569),
+                                            height: 1.35,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    children: [
+                                      const SizedBox(width: 2),
+                                      const Icon(
+                                        Icons.near_me_rounded,
+                                        size: 14,
                                         color: Color(0xFF0052FF),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              ],
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        item.distance,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF0052FF),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                           const SizedBox(width: 8),
 
                           // Navigate Action Box (Bottom Right)
                           GestureDetector(
-                            onTap: () {},
+                            onTap: () => _openGoogleMaps(item.latitude, item.longitude, item.address),
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                               constraints: const BoxConstraints(minWidth: 66, minHeight: 58),
@@ -1353,15 +1687,33 @@ class _VisitsScreenState extends State<VisitsScreen> {
 
                       const SizedBox(height: 14),
 
-                      // Full Width Action Button (Arrival or Started)
+                      // Full Width Action Button (Started -> Arrival -> Update Vitals -> Completed)
                       Container(
                         width: double.infinity,
                         height: 46,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(12),
-                          color: item.buttonText == 'Completed' 
-                              ? const Color(0xFF10B981) 
-                              : (item.isArrivalButton ? const Color(0xFFFF5C00) : const Color(0xFF0052FF)),
+                          color: item.buttonText == 'Completed'
+                              ? const Color(0xFF10B981)
+                              : (item.buttonText == 'Update Vitals'
+                                  ? const Color(0xFFF59E0B)
+                                  : (item.isArrivalButton
+                                      ? const Color(0xFFFF5C00)
+                                      : const Color(0xFF0052FF))),
+                          boxShadow: [
+                            BoxShadow(
+                              color: (item.buttonText == 'Completed'
+                                      ? const Color(0xFF10B981)
+                                      : (item.buttonText == 'Update Vitals'
+                                          ? const Color(0xFFF59E0B)
+                                          : (item.isArrivalButton
+                                              ? const Color(0xFFFF5C00)
+                                              : const Color(0xFF0052FF))))
+                                  .withValues(alpha: 0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
                         ),
                         child: ElevatedButton(
                           onPressed: () => _onTodayVisitAction(item),
@@ -1373,8 +1725,15 @@ class _VisitsScreenState extends State<VisitsScreen> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              if (item.isArrivalButton) const Icon(Icons.exit_to_app_rounded, color: Colors.white, size: 20),
-                              if (item.isArrivalButton) const SizedBox(width: 8),
+                              if (item.buttonText == 'Completed')
+                                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                              if (item.buttonText == 'Update Vitals')
+                                const Icon(Icons.monitor_heart_rounded, color: Colors.white, size: 20),
+                              if (item.isArrivalButton)
+                                const Icon(Icons.exit_to_app_rounded, color: Colors.white, size: 20),
+                              if (item.buttonText == 'Started')
+                                const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20),
+                              const SizedBox(width: 8),
                               Text(
                                 item.buttonText,
                                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),

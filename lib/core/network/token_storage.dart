@@ -6,6 +6,7 @@ class TokenStorage {
   static const String _keyIsOnline = 'nurse_is_online';
 
   static String? _cachedToken;
+  static bool? _cachedIsOnline;
 
   /// Get stored JWT token
   static Future<String?> getToken() async {
@@ -17,6 +18,9 @@ class TokenStorage {
 
   /// Synchronously get cached token if available
   static String? get cachedToken => _cachedToken;
+
+  /// Synchronously get cached online status
+  static bool get isOnline => _cachedIsOnline ?? true;
 
   /// Save JWT token
   static Future<void> saveToken(String token) async {
@@ -39,14 +43,17 @@ class TokenStorage {
 
   /// Save duty status (Online/Offline)
   static Future<void> saveOnlineStatus(bool isOnline) async {
+    _cachedIsOnline = isOnline;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyIsOnline, isOnline);
   }
 
   /// Get duty status
   static Future<bool> getOnlineStatus() async {
+    if (_cachedIsOnline != null) return _cachedIsOnline!;
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_keyIsOnline) ?? true;
+    _cachedIsOnline = prefs.getBool(_keyIsOnline) ?? true;
+    return _cachedIsOnline!;
   }
 
   /// Clear all stored tokens on logout

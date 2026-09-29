@@ -5,7 +5,9 @@ import 'package:howpa_nurse/core/network/api_exceptions.dart';
 import 'package:howpa_nurse/features/auth/data/models/auth_models.dart';
 import 'package:howpa_nurse/features/auth/data/repositories/auth_repository.dart';
 import 'package:howpa_nurse/features/home/presentation/screens/nurse_dashboard_screen.dart';
+import 'phone_number_screen.dart';
 import 'registration_step1_screen.dart';
+import 'registration_step2_screen.dart';
 import 'verification_in_progress_screen.dart';
 
 class OtpScreen extends StatefulWidget {
@@ -155,22 +157,27 @@ class _OtpScreenState extends State<OtpScreen> {
 
         final user = response.nurse;
         final isApproved = user?.isApproved ?? false;
-        final isPending = user?.isPending ?? false;
-        final isProfileCompleted = user?.isProfileCompleted ?? false;
+        final hasFullName = user?.fullName != null && user!.fullName!.trim().isNotEmpty;
+        final isProfileCompleted = (user?.isProfileCompleted ?? false) && hasFullName;
         final isKycSubmitted = user?.isKycSubmitted ?? false;
 
         Widget targetScreen;
         if (isApproved) {
           // Existing Approved Nurse -> Go directly to Home Dashboard
           targetScreen = const NurseDashboardScreen();
-        } else if (isPending || isKycSubmitted || isProfileCompleted) {
-          // Verification In Progress -> locked on verification screen until approved
-          targetScreen = VerificationInProgressScreen(registeredPhone: fullPhone);
-        } else {
-          // New User or Incomplete Profile -> Registration Step 1
+        } else if (!isProfileCompleted) {
+          // Step 1: Personal Details & Specialization
           targetScreen = RegistrationStep1Screen(
             phoneNumber: '${widget.countryCode} ${widget.phoneNumber}',
           );
+        } else if (!isKycSubmitted) {
+          // Step 2: Upload Documents & KYC
+          targetScreen = RegistrationStep2Screen(
+            phoneNumber: '${widget.countryCode} ${widget.phoneNumber}',
+          );
+        } else {
+          // Both Step 1 & Step 2 completed -> Under Review Screen
+          targetScreen = VerificationInProgressScreen(registeredPhone: fullPhone);
         }
 
         Navigator.pushAndRemoveUntil(
@@ -243,22 +250,40 @@ class _OtpScreenState extends State<OtpScreen> {
     );
   }
 
+  void _handleBack() {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const PhoneNumberScreen()),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFCFCFD),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            color: Color(0xFF0F172A),
-            size: 20,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          _handleBack();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFFCFCFD),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(
+              Icons.arrow_back_ios_new,
+              color: Color(0xFF0F172A),
+              size: 20,
+            ),
+            onPressed: _handleBack,
           ),
-          onPressed: () => Navigator.pop(context),
         ),
-      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -457,8 +482,9 @@ class _OtpScreenState extends State<OtpScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildPinCell(int index) {
     final hasFocus = _otpFocusNode.hasFocus;

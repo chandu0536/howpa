@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:howpa_nurse/core/network/api_exceptions.dart';
 import 'package:howpa_nurse/features/auth/data/repositories/auth_repository.dart';
+import 'onboarding_screen.dart';
 import 'otp_screen.dart';
 
 class PhoneNumberScreen extends StatefulWidget {
@@ -16,6 +17,17 @@ class _PhoneNumberScreenState extends State<PhoneNumberScreen> {
   final FocusNode _phoneFocusNode = FocusNode();
   final String _selectedCountryCode = '+91';
   String? _errorMessage;
+
+  void _handleBack() {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -106,15 +118,34 @@ class _PhoneNumberScreenState extends State<PhoneNumberScreen> {
   Widget build(BuildContext context) {
     final isFocused = _phoneFocusNode.hasFocus;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFFCFCFD),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(height: 40),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          _handleBack();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFFCFCFD),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(
+              Icons.arrow_back_ios_new,
+              color: Color(0xFF0F172A),
+              size: 20,
+            ),
+            onPressed: _handleBack,
+          ),
+        ),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 10),
 
               // Top Logo
               Image.asset(
@@ -357,6 +388,7 @@ class _PhoneNumberScreenState extends State<PhoneNumberScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

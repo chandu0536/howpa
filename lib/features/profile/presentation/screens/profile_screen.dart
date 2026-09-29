@@ -8,6 +8,7 @@ import 'package:howpa_nurse/features/vitals/presentation/screens/vitals_screen.d
 import 'package:howpa_nurse/features/profile/presentation/screens/personal_details_screen.dart';
 import 'package:howpa_nurse/features/profile/presentation/screens/payment_earnings_screen.dart';
 import 'package:howpa_nurse/core/services/user_profile_manager.dart';
+import 'package:howpa_nurse/features/profile/data/models/profile_models.dart';
 import 'package:howpa_nurse/features/profile/data/repositories/profile_repository.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -26,21 +27,97 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _loadProfile();
+    _checkLostImageData();
+  }
+
+  Future<void> _checkLostImageData() async {
+    try {
+      final LostDataResponse response = await _picker.retrieveLostData();
+      if (response.isEmpty) return;
+      final file = response.file;
+      if (file != null) {
+        final f = File(file.path);
+        if (f.existsSync()) {
+          _uploadPickedImage(f);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error retrieving lost image data: $e');
+    }
   }
 
   Future<void> _loadProfile() async {
-    final user = await _profileRepo.getProfile();
-    if (user != null && mounted) {
-      UserProfileManager.instance.updateProfileDetails(
-        fullName: user.fullName,
-        phoneNumber: user.phone,
-        location: user.address,
-        area: user.city,
-        district: user.city,
-        state: 'Telangana',
-        specialization: user.specialization,
+    try {
+      final user = await _profileRepo.getProfile();
+      if (user != null && mounted) {
+        UserProfileManager.instance.updateProfileDetails(
+          nurseId: user.id,
+          fullName: user.fullName,
+          phoneNumber: user.phone,
+          email: user.email,
+          dob: user.dob,
+          gender: user.gender,
+          experience: user.experienceYears?.toString(),
+          specialization: user.specialization,
+          location: user.address,
+          area: user.city,
+          district: user.city,
+          state: 'Telangana',
+          profilePhotoUrl: user.profilePhotoUrl,
+        );
+        setState(() {});
+      }
+    } catch (e) {
+      debugPrint('Error loading profile: $e');
+    }
+  }
+
+  Future<void> _uploadPickedImage(File file) async {
+    UserProfileManager.instance.setProfileImage(file);
+    setState(() {});
+
+    try {
+      final success = await _profileRepo.updateProfile(
+        UpdateProfileRequest(
+          fullName: UserProfileManager.instance.fullName,
+          email: UserProfileManager.instance.email,
+          gender: UserProfileManager.instance.gender.isNotEmpty ? UserProfileManager.instance.gender : 'Female',
+          dob: UserProfileManager.instance.dob,
+          specialization: UserProfileManager.instance.specialization,
+          experienceYears: UserProfileManager.instance.experience,
+          address: UserProfileManager.instance.location,
+          city: UserProfileManager.instance.district,
+          pincode: '500001',
+          latitude: UserProfileManager.instance.latitude,
+          longitude: UserProfileManager.instance.longitude,
+        ),
+        profilePhoto: file,
       );
-      setState(() {});
+
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Profile photo uploaded and synced successfully!'),
+              backgroundColor: Color(0xFF10B981),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
+          _loadProfile();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Profile photo updated locally. Server sync pending.'),
+              backgroundColor: Color(0xFFF59E0B),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error uploading profile photo to server: $e');
     }
   }
 
@@ -84,12 +161,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       try {
                         final XFile? photo = await _picker.pickImage(
                           source: ImageSource.camera,
-                          imageQuality: 85,
+                          maxWidth: 1024,
+                          maxHeight: 1024,
+                          imageQuality: 75,
                         );
                         if (photo != null) {
-                          UserProfileManager.instance.setProfileImage(File(photo.path));
+                          final file = File(photo.path);
+                          if (file.existsSync()) {
+                            await _uploadPickedImage(file);
+                          }
                         }
-                      } catch (_) {}
+                      } catch (e) {
+                        debugPrint('Camera image pick error: $e');
+                      }
                     },
                     child: Column(
                       children: [
@@ -116,12 +200,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       try {
                         final XFile? image = await _picker.pickImage(
                           source: ImageSource.gallery,
-                          imageQuality: 85,
+                          maxWidth: 1024,
+                          maxHeight: 1024,
+                          imageQuality: 75,
                         );
                         if (image != null) {
-                          UserProfileManager.instance.setProfileImage(File(image.path));
+                          final file = File(image.path);
+                          if (file.existsSync()) {
+                            await _uploadPickedImage(file);
+                          }
                         }
-                      } catch (_) {}
+                      } catch (e) {
+                        debugPrint('Gallery image pick error: $e');
+                      }
                     },
                     child: Column(
                       children: [
@@ -163,8 +254,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ListenableBuilder(
                 listenable: UserProfileManager.instance,
                 builder: (context, child) {
-                  final hasPhoto = UserProfileManager.instance.hasProfileImage;
-                  final photoFile = UserProfileManager.instance.profileImageFile;
                   final name = UserProfileManager.instance.fullName;
                   final spec = UserProfileManager.instance.specialization;
 
@@ -184,18 +273,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   shape: BoxShape.circle,
                                   border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
                                 ),
-                                child: ClipOval(
-                                  child: hasPhoto && photoFile != null
-                                      ? Image.file(
-                                          photoFile,
-                                          fit: BoxFit.cover,
-                                        )
-                                      : Image.network(
-                                          'https://images.unsplash.com/photo-1594824436951-7f12bc5a6f23?auto=format&fit=crop&q=80&w=200',
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) =>
-                                              const Icon(Icons.person, size: 50, color: Colors.grey),
-                                        ),
+                                child: UserProfileManager.instance.buildAvatarWidget(
+                                  size: 100,
+                                  fallbackBgColor: const Color(0xFFFF5C00),
+                                  fallbackIconColor: Colors.white,
+                                  iconSize: 50,
                                 ),
                               ),
                               Positioned(

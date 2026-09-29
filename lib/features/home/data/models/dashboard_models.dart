@@ -16,13 +16,14 @@ class DashboardStats {
   });
 
   factory DashboardStats.fromJson(Map<String, dynamic> json) {
+    final data = json['data'] is Map<String, dynamic> ? json['data'] as Map<String, dynamic> : json;
     return DashboardStats(
-      todayVisitsCount: json['todayVisitsCount'] as int? ?? json['todayVisits'] as int? ?? 0,
-      pendingRequestsCount: json['pendingRequestsCount'] as int? ?? json['pendingRequests'] as int? ?? 0,
-      completedVisitsCount: json['completedVisitsCount'] as int? ?? json['completedVisits'] as int? ?? 0,
-      todayEarnings: (json['todayEarnings'] as num?)?.toDouble() ?? 0.0,
-      overallRating: (json['overallRating'] as num?)?.toDouble() ?? 0.0,
-      isOnline: json['isOnline'] as bool? ?? true,
+      todayVisitsCount: data['todayVisits'] as int? ?? data['todayVisitsCount'] as int? ?? 0,
+      pendingRequestsCount: data['waitingRequests'] as int? ?? data['pendingRequestsCount'] as int? ?? data['pendingRequests'] as int? ?? 0,
+      completedVisitsCount: data['completedVisits'] as int? ?? data['completedVisitsCount'] as int? ?? 0,
+      todayEarnings: (data['todayEarnings'] as num?)?.toDouble() ?? 0.0,
+      overallRating: (data['overallRating'] as num?)?.toDouble() ?? (data['rating'] as num?)?.toDouble() ?? 0.0,
+      isOnline: data['isOnline'] as bool? ?? true,
     );
   }
 }
@@ -30,6 +31,7 @@ class DashboardStats {
 class LiveTelemetryRequest {
   final double latitude;
   final double longitude;
+  final String? address;
   final double? heading;
   final double? speed;
   final double? accuracy;
@@ -38,6 +40,7 @@ class LiveTelemetryRequest {
   const LiveTelemetryRequest({
     required this.latitude,
     required this.longitude,
+    this.address,
     this.heading,
     this.speed,
     this.accuracy,
@@ -47,6 +50,7 @@ class LiveTelemetryRequest {
   Map<String, dynamic> toJson() => {
         'latitude': latitude,
         'longitude': longitude,
+        if (address != null) 'address': address,
         if (heading != null) 'heading': heading,
         if (speed != null) 'speed': speed,
         if (accuracy != null) 'accuracy': accuracy,

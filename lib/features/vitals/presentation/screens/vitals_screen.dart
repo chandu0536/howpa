@@ -268,6 +268,7 @@ class _VitalsScreenState extends State<VitalsScreen> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => UpdateVitalsScreen(
+                      appointmentId: item.id,
                       patientName: item.patientName,
                       avatarUrl: item.avatarUrl,
                     ),

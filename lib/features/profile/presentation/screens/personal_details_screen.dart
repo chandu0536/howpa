@@ -19,19 +19,27 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
   }
 
   Future<void> _loadProfile() async {
-    final user = await _profileRepo.getProfile();
-    if (user != null && mounted) {
-      UserProfileManager.instance.updateProfileDetails(
-        fullName: user.fullName,
-        phoneNumber: user.phone,
-        location: user.address,
-        area: user.city,
-        district: user.city,
-        state: 'Telangana',
-        specialization: user.specialization,
-      );
-      setState(() {});
-    }
+    try {
+      final user = await _profileRepo.getProfile();
+      if (user != null && mounted) {
+        UserProfileManager.instance.updateProfileDetails(
+          nurseId: user.id,
+          fullName: user.fullName,
+          phoneNumber: user.phone,
+          email: user.email,
+          dob: user.dob,
+          gender: user.gender,
+          experience: user.experienceYears?.toString(),
+          specialization: user.specialization,
+          location: user.address,
+          area: user.city,
+          district: user.city,
+          state: 'Telangana',
+          profilePhotoUrl: user.profilePhotoUrl,
+        );
+        setState(() {});
+      }
+    } catch (_) {}
   }
 
   @override
@@ -66,8 +74,6 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
         listenable: UserProfileManager.instance,
         builder: (context, child) {
           final profile = UserProfileManager.instance;
-          final hasPhoto = profile.hasProfileImage;
-          final photoFile = profile.profileImageFile;
 
           return Column(
             children: [
@@ -95,20 +101,11 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                           shape: BoxShape.circle,
                           border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
                         ),
-                        child: ClipOval(
-                          child: hasPhoto && photoFile != null
-                              ? Image.file(
-                                  photoFile,
-                                  fit: BoxFit.cover,
-                                  width: 100,
-                                  height: 100,
-                                )
-                              : Image.network(
-                                  'https://images.unsplash.com/photo-1594824436951-7f12bc5a6f23?auto=format&fit=crop&q=80&w=200',
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const Icon(Icons.person, size: 50, color: Colors.grey),
-                                ),
+                        child: profile.buildAvatarWidget(
+                          size: 100,
+                          fallbackBgColor: const Color(0xFFFF5C00),
+                          fallbackIconColor: Colors.white,
+                          iconSize: 50,
                         ),
                       ),
                       const SizedBox(height: 32),
