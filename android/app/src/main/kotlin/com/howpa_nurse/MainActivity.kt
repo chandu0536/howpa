@@ -1,4 +1,4 @@
-package com.howpa_nurse
+package com.howpa.nurseapp
 
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.android.RenderMode

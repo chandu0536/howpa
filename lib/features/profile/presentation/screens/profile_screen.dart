@@ -7,6 +7,7 @@ import 'package:howpa_nurse/features/visits/presentation/screens/visits_screen.d
 import 'package:howpa_nurse/features/vitals/presentation/screens/vitals_screen.dart';
 import 'package:howpa_nurse/features/profile/presentation/screens/personal_details_screen.dart';
 import 'package:howpa_nurse/features/profile/presentation/screens/payment_earnings_screen.dart';
+import 'package:howpa_nurse/features/profile/presentation/screens/vitals_history_screen.dart';
 import 'package:howpa_nurse/core/services/user_profile_manager.dart';
 import 'package:howpa_nurse/features/profile/data/models/profile_models.dart';
 import 'package:howpa_nurse/features/profile/data/repositories/profile_repository.dart';
@@ -372,6 +373,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       iconBgColor: const Color(0xFFFFF4ED),
                       onTap: () {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const PaymentEarningsScreen()));
+                      },
+                    ),
+                    const Divider(height: 1, color: Color(0xFFF1F5F9), indent: 16, endIndent: 16),
+                    _buildMenuItem(
+                      title: 'Vitals History',
+                      icon: Icons.monitor_heart_outlined,
+                      iconColor: const Color(0xFF10B981),
+                      iconBgColor: const Color(0xFFECFDF5),
+                      onTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const VitalsHistoryScreen()));
                       },
                     ),
                     const Divider(height: 1, color: Color(0xFFF1F5F9), indent: 16, endIndent: 16),

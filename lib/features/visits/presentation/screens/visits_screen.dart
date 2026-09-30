@@ -8,6 +8,7 @@ import 'package:howpa_nurse/core/services/user_profile_manager.dart';
 import 'package:howpa_nurse/core/services/booking_notification_manager.dart';
 import 'package:howpa_nurse/features/visits/data/models/visit_models.dart';
 import 'package:howpa_nurse/features/visits/data/repositories/visits_repository.dart';
+import 'package:howpa_nurse/features/vitals/presentation/widgets/view_vitals_bottom_sheet.dart';
 
 // Data models for each tab
 class NewRequestItem {
@@ -1972,6 +1973,42 @@ class _VisitsScreenState extends State<VisitsScreen> {
                             ],
                           ),
                         ],
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // View Vitals & Reports Action Button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 40,
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final summary = await _visitsRepo.getVitalsForAppointment(item.id);
+                            if (summary != null && mounted) {
+                              ViewVitalsBottomSheet.show(context, summary);
+                            }
+                          },
+                          icon: const Icon(
+                            Icons.monitor_heart_outlined,
+                            size: 17,
+                            color: Color(0xFF10B981),
+                          ),
+                          label: const Text(
+                            'View Vitals & Reports',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF10B981),
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: const Color(0xFFECFDF5),
+                            side: const BorderSide(color: Color(0xFFA7F3D0)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ),
