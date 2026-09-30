@@ -570,13 +570,17 @@ class _UpdateVitalsScreenState extends State<UpdateVitalsScreen> {
         title: 'Upload Proof for $vitalTitle',
       );
       if (source == null) return;
-      await Future.delayed(const Duration(milliseconds: 150));
+      await Future.delayed(const Duration(milliseconds: 200));
+
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
 
       final XFile? image = await _picker.pickImage(
         source: source,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 70,
+        maxWidth: 600,
+        maxHeight: 600,
+        imageQuality: 65,
+        preferredCameraDevice: CameraDevice.rear,
       );
       if (image != null && mounted) {
         final file = File(image.path);
@@ -604,13 +608,17 @@ class _UpdateVitalsScreenState extends State<UpdateVitalsScreen> {
         subtitle: 'Capture or select photos of wounds, swelling, or physical observations.',
       );
       if (source == null) return;
-      await Future.delayed(const Duration(milliseconds: 150));
+      await Future.delayed(const Duration(milliseconds: 200));
+
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
 
       final XFile? image = await _picker.pickImage(
         source: source,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 70,
+        maxWidth: 600,
+        maxHeight: 600,
+        imageQuality: 65,
+        preferredCameraDevice: CameraDevice.rear,
       );
       if (image != null && mounted) {
         final file = File(image.path);
@@ -685,13 +693,16 @@ class _UpdateVitalsScreenState extends State<UpdateVitalsScreen> {
                   onTap: () async {
                     final messenger = ScaffoldMessenger.of(context);
                     Navigator.pop(context);
-                    await Future.delayed(const Duration(milliseconds: 150));
+                    await Future.delayed(const Duration(milliseconds: 200));
                     try {
+                      PaintingBinding.instance.imageCache.clear();
+                      PaintingBinding.instance.imageCache.clearLiveImages();
                       final XFile? image = await _picker.pickImage(
                         source: ImageSource.camera,
-                        maxWidth: 800,
-                        maxHeight: 800,
-                        imageQuality: 70,
+                        maxWidth: 600,
+                        maxHeight: 600,
+                        imageQuality: 65,
+                        preferredCameraDevice: CameraDevice.rear,
                       );
                       if (image != null && mounted) {
                         setState(() {
@@ -725,13 +736,15 @@ class _UpdateVitalsScreenState extends State<UpdateVitalsScreen> {
                   onTap: () async {
                     final messenger = ScaffoldMessenger.of(context);
                     Navigator.pop(context);
-                    await Future.delayed(const Duration(milliseconds: 150));
+                    await Future.delayed(const Duration(milliseconds: 200));
                     try {
+                      PaintingBinding.instance.imageCache.clear();
+                      PaintingBinding.instance.imageCache.clearLiveImages();
                       final XFile? image = await _picker.pickImage(
                         source: ImageSource.gallery,
-                        maxWidth: 800,
-                        maxHeight: 800,
-                        imageQuality: 70,
+                        maxWidth: 600,
+                        maxHeight: 600,
+                        imageQuality: 65,
                       );
                       if (image != null && mounted) {
                         setState(() {
