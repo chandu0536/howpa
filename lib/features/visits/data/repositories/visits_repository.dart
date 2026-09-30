@@ -30,6 +30,10 @@ class VisitsRepositoryImpl implements VisitsRepository {
   static final Set<String> _locallyRejectedIds = {};
   static final Set<String> _locallyCompletedIds = {};
 
+  static List<VisitRequestItem> getCachedNearbyRequests() => List.unmodifiable(_cachedNearbyRequests);
+  static List<VisitRequestItem> getCachedTodayVisits() => List.unmodifiable(_cachedTodayVisits);
+  static List<VisitRequestItem> getCachedCompletedVisits() => List.unmodifiable(_cachedCompletedVisits);
+
   VisitsRepositoryImpl({ApiClient? client}) : _client = client ?? ApiClient.instance;
 
   @override

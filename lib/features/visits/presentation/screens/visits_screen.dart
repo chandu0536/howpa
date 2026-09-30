@@ -169,13 +169,29 @@ class _VisitsScreenState extends State<VisitsScreen> {
     if (_highlightedPatientName != null) {
       _startHighlightFade();
     }
+
+    // 1. Instant Cache Hydration: Render immediately in 0ms!
+    _loadFromCache();
+
+    // 2. Non-blocking background network refresh
     _loadVisitsData();
-    // Auto-refresh visits screen every 12 seconds in background
-    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 12), (_) {
+
+    // 3. Background auto-refresh every 20 seconds
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       if (mounted && !_isSearching && _searchQuery.isEmpty) {
         _loadVisitsData(isAutoRefresh: true);
       }
     });
+  }
+
+  void _loadFromCache() {
+    final nearby = VisitsRepositoryImpl.getCachedNearbyRequests();
+    final today = VisitsRepositoryImpl.getCachedTodayVisits();
+    final completed = VisitsRepositoryImpl.getCachedCompletedVisits();
+
+    if (nearby.isNotEmpty || today.isNotEmpty || completed.isNotEmpty) {
+      _applyData(nearby, today, completed, isInitialCache: true);
+    }
   }
 
   Future<void> _loadVisitsData({bool isAutoRefresh = false}) async {
@@ -185,7 +201,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
     _isFetchingData = true;
 
     try {
-      // Execute API calls concurrently in parallel instead of sequentially
+      // Execute API calls concurrently in parallel
       final results = await Future.wait([
         _visitsRepo.getNearbyRequests(),
         _visitsRepo.getTodayVisits(),
@@ -194,9 +210,21 @@ class _VisitsScreenState extends State<VisitsScreen> {
 
       if (!mounted) return;
 
-      final nearby = results[0];
-      final today = results[1];
-      final completed = results[2];
+      _applyData(results[0], results[1], results[2], isAutoRefresh: isAutoRefresh);
+    } catch (_) {
+      // Ignore background refresh network glitches gracefully
+    } finally {
+      _isFetchingData = false;
+    }
+  }
+
+  void _applyData(
+    List<VisitRequestItem> nearby,
+    List<VisitRequestItem> today,
+    List<VisitRequestItem> completed, {
+    bool isAutoRefresh = false,
+    bool isInitialCache = false,
+  }) {
 
       // Check for newly arrived booking requests to trigger Pop-Up notification
       NewRequestItem? brandNewRequest;
@@ -351,14 +379,9 @@ class _VisitsScreenState extends State<VisitsScreen> {
       }
 
       // Trigger alert popup notification for new booking
-      if (brandNewRequest != null && !BookingNotificationManager.isPopupShowing) {
+      if (!isInitialCache && brandNewRequest != null && !BookingNotificationManager.isPopupShowing) {
         _showNewBookingAlertNotification(brandNewRequest!);
       }
-    } catch (_) {
-      // Ignore background refresh network glitches gracefully
-    } finally {
-      _isFetchingData = false;
-    }
   }
 
   bool _hasDataChanged(List<NewRequestItem> newReqs, List<TodayVisitItem> todayVisits) {
