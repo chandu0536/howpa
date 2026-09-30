@@ -338,8 +338,153 @@ class VisitsRepositoryImpl implements VisitsRepository {
     return true;
   }
 
+  static void saveVitalsSummary(PatientVitalsSummary summary) {
+    if (summary.id.isNotEmpty) _cachedVitalsSummaries[summary.id] = summary;
+    if (summary.appointmentId.isNotEmpty) _cachedVitalsSummaries[summary.appointmentId] = summary;
+    if (summary.requestId.isNotEmpty) _cachedVitalsSummaries[summary.requestId] = summary;
+    if (summary.patientName.isNotEmpty) _cachedVitalsSummaries[summary.patientName.toLowerCase()] = summary;
+  }
+
   @override
   Future<bool> recordPatientVitals(RecordVitalsRequest request) async {
+    // ── Build & Cache local PatientVitalsSummary FIRST for instant offline/online viewing ──
+    final List<VitalItemEntry> vitalsList = [
+      VitalItemEntry(
+        name: 'Blood Pressure',
+        value: request.bloodPressure.isNotEmpty ? request.bloodPressure : '120/80',
+        unit: 'mmHg',
+        details: 'Standard Clinical Reading',
+        status: 'Normal',
+        fileUrl: request.vitalImages?['Blood Pressure'] ?? '',
+      ),
+      VitalItemEntry(
+        name: 'Heart Rate',
+        value: request.heartRate.toString(),
+        unit: 'bpm',
+        details: 'Radial Pulse',
+        status: 'Normal',
+        fileUrl: request.vitalImages?['Heart Rate'] ?? '',
+      ),
+      VitalItemEntry(
+        name: 'Temperature',
+        value: request.temperature.toString(),
+        unit: '°F',
+        details: 'Oral / Forehead Thermometer',
+        status: 'Normal',
+        fileUrl: request.vitalImages?['Temperature'] ?? '',
+      ),
+    ];
+
+    if (request.bloodSugar > 0) {
+      vitalsList.add(VitalItemEntry(
+        name: 'Blood Glucose (Sugar)',
+        value: request.bloodSugar.toString(),
+        unit: 'mg/dL',
+        details: 'Glucometer Reading',
+        status: 'Normal',
+        fileUrl: request.vitalImages?['Blood Sugar'] ?? '',
+      ));
+    }
+
+    if (request.spo2 > 0) {
+      vitalsList.add(VitalItemEntry(
+        name: 'Pulse Oximeter (SpO2)',
+        value: request.spo2.toString(),
+        unit: '%',
+        details: 'Oxygen Saturation',
+        status: 'Normal',
+        fileUrl: request.vitalImages?['SpO2'] ?? '',
+      ));
+    }
+
+    if (request.weight > 0) {
+      vitalsList.add(VitalItemEntry(
+        name: 'Weight',
+        value: request.weight.toString(),
+        unit: 'kg',
+        details: 'Patient Scale',
+        status: 'Normal',
+        fileUrl: request.vitalImages?['Weight'] ?? '',
+      ));
+    }
+
+    if (request.customVitals != null) {
+      for (final cv in request.customVitals!) {
+        vitalsList.add(VitalItemEntry(
+          name: cv['type'] ?? 'Custom Vital',
+          value: cv['value'] ?? '',
+          unit: cv['unit'] ?? '',
+          details: 'Nurse Observed Vital',
+          status: 'Normal',
+          fileUrl: cv['imagePath'] ?? '',
+        ));
+      }
+    }
+
+    final conditionPhotos = (request.conditionImages ?? [])
+        .map((path) => ConditionPhotoEntry(url: path, caption: 'Patient condition / dressing observation'))
+        .toList();
+
+    final oldReports = (request.oldReportFiles ?? [])
+        .map((path) => OldReportEntry(
+              url: path,
+              name: path.split(RegExp(r'[/\\]')).last,
+              type: path.toLowerCase().endsWith('.pdf') ? 'PDF Report' : 'Medical Image Document',
+            ))
+        .toList();
+
+    // Look up patient name & avatar from cached visit item
+    final matchedItem = _cachedTodayVisits.cast<VisitRequestItem?>().firstWhere(
+          (t) => t?.id == request.appointmentId,
+          orElse: () => _cachedCompletedVisits.cast<VisitRequestItem?>().firstWhere(
+                (c) => c?.id == request.appointmentId,
+                orElse: () => null,
+              ),
+        );
+
+    final summary = PatientVitalsSummary(
+      id: request.appointmentId,
+      requestId: request.appointmentId,
+      appointmentId: request.appointmentId,
+      patientName: matchedItem?.patientName ?? 'Patient',
+      patientAvatar: matchedItem?.avatarUrl ?? '',
+      patientAddress: matchedItem?.address ?? '',
+      patientPhone: matchedItem?.phoneNumber ?? '',
+      vitals: vitalsList,
+      conditionPhotos: conditionPhotos,
+      oldReports: oldReports,
+      notes: request.notes.isNotEmpty ? request.notes : 'Patient is stable.',
+      recordedAt: 'Today • Just now',
+    );
+
+    saveVitalsSummary(summary);
+
+    // ── Local state: mark visit as completed ──
+    _locallyCompletedIds.add(request.appointmentId);
+    final idx =
+        _cachedTodayVisits.indexWhere((t) => t.id == request.appointmentId);
+    if (idx != -1) {
+      final item = _cachedTodayVisits.removeAt(idx);
+      final completedItem = VisitRequestItem(
+        id: item.id,
+        patientName: item.patientName,
+        address: item.address,
+        distance: item.distance,
+        serviceTag: item.serviceTag,
+        time: item.time,
+        avatarUrl: item.avatarUrl,
+        status: 'COMPLETED',
+        notes: item.notes,
+        phoneNumber: item.phoneNumber,
+        latitude: item.latitude,
+        longitude: item.longitude,
+        isVitalsUpdated: true,
+        doctorName: item.doctorName,
+      );
+      _cachedCompletedVisits.removeWhere((c) => c.id == item.id);
+      _cachedCompletedVisits.insert(0, completedItem);
+    }
+
     try {
       // ── Map vital name → backend file field key ──
       const vitalFileKeys = <String, String>{
@@ -353,43 +498,37 @@ class VisitsRepositoryImpl implements VisitsRepository {
 
       final filesMap = <String, File>{};
 
-      // 1. Per-vital proof photos  →  bp_image, sugar_image, spo2_image, etc.
       final vitalImages = request.vitalImages;
       if (vitalImages != null) {
         for (final entry in vitalImages.entries) {
           final file = File(entry.value);
           if (!file.existsSync()) continue;
-          // Look up exact backend key, fall back to generic vital_<name>
           final backendKey = vitalFileKeys[entry.key] ??
               'vital_${entry.key.toLowerCase().replaceAll(' ', '_')}';
           filesMap[backendKey] = file;
         }
       }
 
-      // 2. Condition / wound photos  →  condition_photos[]
       final conditionImages = request.conditionImages;
       if (conditionImages != null) {
         for (int i = 0; i < conditionImages.length; i++) {
           final file = File(conditionImages[i]);
           if (!file.existsSync()) continue;
-          // Backend accepts repeated key: condition_photos
           filesMap['condition_photos[$i]'] = file;
-          filesMap['wound_photos[$i]'] = file; // alias
+          filesMap['wound_photos[$i]'] = file;
         }
       }
 
-      // 3. Old reports / records  →  old_reports[]
       final oldReportFiles = request.oldReportFiles;
       if (oldReportFiles != null) {
         for (int i = 0; i < oldReportFiles.length; i++) {
           final file = File(oldReportFiles[i]);
           if (!file.existsSync()) continue;
           filesMap['old_reports[$i]'] = file;
-          filesMap['patient_reports[$i]'] = file; // alias
+          filesMap['patient_reports[$i]'] = file;
         }
       }
 
-      // 4. Custom vitals proof photos
       final customVitals = request.customVitals;
       if (customVitals != null) {
         for (int i = 0; i < customVitals.length; i++) {
@@ -408,7 +547,6 @@ class VisitsRepositoryImpl implements VisitsRepository {
       }
 
       if (filesMap.isNotEmpty) {
-        // ── Multipart upload with exact backend field names ──
         await _client.multipartRequest(
           method: 'POST',
           url: ApiEndpoints.vitals,
@@ -416,146 +554,7 @@ class VisitsRepositoryImpl implements VisitsRepository {
           files: filesMap,
         );
       } else {
-        // ── Pure JSON fallback (no file attachments) ──
         await _client.post(ApiEndpoints.vitals, body: request.toJson());
-      }
-
-      // ── Build & Cache local PatientVitalsSummary for instant viewing ──
-      final List<VitalItemEntry> vitalsList = [
-        VitalItemEntry(
-          name: 'Blood Pressure',
-          value: request.bloodPressure.isNotEmpty ? request.bloodPressure : '120/80',
-          unit: 'mmHg',
-          details: 'Standard Clinical Reading',
-          status: 'Normal',
-          fileUrl: request.vitalImages?['Blood Pressure'] ?? '',
-        ),
-        VitalItemEntry(
-          name: 'Heart Rate',
-          value: request.heartRate.toString(),
-          unit: 'bpm',
-          details: 'Radial Pulse',
-          status: 'Normal',
-          fileUrl: request.vitalImages?['Heart Rate'] ?? '',
-        ),
-        VitalItemEntry(
-          name: 'Temperature',
-          value: request.temperature.toString(),
-          unit: '°F',
-          details: 'Oral / Forehead Thermometer',
-          status: 'Normal',
-          fileUrl: request.vitalImages?['Temperature'] ?? '',
-        ),
-      ];
-
-      if (request.bloodSugar > 0) {
-        vitalsList.add(VitalItemEntry(
-          name: 'Blood Glucose (Sugar)',
-          value: request.bloodSugar.toString(),
-          unit: 'mg/dL',
-          details: 'Glucometer Reading',
-          status: 'Normal',
-          fileUrl: request.vitalImages?['Blood Sugar'] ?? '',
-        ));
-      }
-
-      if (request.spo2 > 0) {
-        vitalsList.add(VitalItemEntry(
-          name: 'Pulse Oximeter (SpO2)',
-          value: request.spo2.toString(),
-          unit: '%',
-          details: 'Oxygen Saturation',
-          status: 'Normal',
-          fileUrl: request.vitalImages?['SpO2'] ?? '',
-        ));
-      }
-
-      if (request.weight > 0) {
-        vitalsList.add(VitalItemEntry(
-          name: 'Weight',
-          value: request.weight.toString(),
-          unit: 'kg',
-          details: 'Patient Scale',
-          status: 'Normal',
-          fileUrl: request.vitalImages?['Weight'] ?? '',
-        ));
-      }
-
-      if (request.customVitals != null) {
-        for (final cv in request.customVitals!) {
-          vitalsList.add(VitalItemEntry(
-            name: cv['type'] ?? 'Custom Vital',
-            value: cv['value'] ?? '',
-            unit: cv['unit'] ?? '',
-            details: 'Nurse Observed Vital',
-            status: 'Normal',
-            fileUrl: cv['imagePath'] ?? '',
-          ));
-        }
-      }
-
-      final conditionPhotos = (request.conditionImages ?? [])
-          .map((path) => ConditionPhotoEntry(url: path, caption: 'Patient condition / dressing observation'))
-          .toList();
-
-      final oldReports = (request.oldReportFiles ?? [])
-          .map((path) => OldReportEntry(
-                url: path,
-                name: path.split(RegExp(r'[/\\]')).last,
-                type: path.toLowerCase().endsWith('.pdf') ? 'PDF Report' : 'Medical Image Document',
-              ))
-          .toList();
-
-      // Look up patient name & avatar from cached visit item
-      final matchedItem = _cachedTodayVisits.cast<VisitRequestItem?>().firstWhere(
-            (t) => t?.id == request.appointmentId,
-            orElse: () => _cachedCompletedVisits.cast<VisitRequestItem?>().firstWhere(
-                  (c) => c?.id == request.appointmentId,
-                  orElse: () => null,
-                ),
-          );
-
-      final summary = PatientVitalsSummary(
-        id: request.appointmentId,
-        requestId: request.appointmentId,
-        appointmentId: request.appointmentId,
-        patientName: matchedItem?.patientName ?? 'Patient',
-        patientAvatar: matchedItem?.avatarUrl ?? '',
-        patientAddress: matchedItem?.address ?? '',
-        patientPhone: matchedItem?.phoneNumber ?? '',
-        vitals: vitalsList,
-        conditionPhotos: conditionPhotos,
-        oldReports: oldReports,
-        notes: request.notes.isNotEmpty ? request.notes : 'Patient is stable.',
-        recordedAt: 'Today • Just now',
-      );
-
-      _cachedVitalsSummaries[request.appointmentId] = summary;
-
-      // ── Local state: mark visit as completed ──
-      _locallyCompletedIds.add(request.appointmentId);
-      final idx =
-          _cachedTodayVisits.indexWhere((t) => t.id == request.appointmentId);
-      if (idx != -1) {
-        final item = _cachedTodayVisits.removeAt(idx);
-        final completedItem = VisitRequestItem(
-          id: item.id,
-          patientName: item.patientName,
-          address: item.address,
-          distance: item.distance,
-          serviceTag: item.serviceTag,
-          time: item.time,
-          avatarUrl: item.avatarUrl,
-          status: 'COMPLETED',
-          notes: item.notes,
-          phoneNumber: item.phoneNumber,
-          latitude: item.latitude,
-          longitude: item.longitude,
-          isVitalsUpdated: true,
-          doctorName: item.doctorName,
-        );
-        _cachedCompletedVisits.removeWhere((c) => c.id == item.id);
-        _cachedCompletedVisits.insert(0, completedItem);
       }
     } catch (_) {}
     return true;
@@ -582,48 +581,60 @@ class VisitsRepositoryImpl implements VisitsRepository {
 
   @override
   Future<PatientVitalsSummary?> getVitalsForAppointment(String appointmentId) async {
+    // 1. Direct ID match
     if (_cachedVitalsSummaries.containsKey(appointmentId)) {
       return _cachedVitalsSummaries[appointmentId];
     }
+    // 2. Search values for matching ID or patient name
+    for (final s in _cachedVitalsSummaries.values) {
+      if (s.id == appointmentId ||
+          s.appointmentId == appointmentId ||
+          s.requestId == appointmentId ||
+          s.patientName.toLowerCase() == appointmentId.toLowerCase()) {
+        return s;
+      }
+    }
+
+    // 3. Try API fetch
     try {
       final response = await _client.get('${ApiEndpoints.vitals}?appointmentId=$appointmentId');
       if (response != null && response is Map<String, dynamic>) {
         final data = response['data'] ?? response;
         if (data is Map<String, dynamic>) {
           final summary = PatientVitalsSummary.fromJson(data);
-          _cachedVitalsSummaries[appointmentId] = summary;
+          saveVitalsSummary(summary);
           return summary;
         }
       }
     } catch (_) {}
 
-    // Fallback: build a default clinical summary from completed visit if available
+    // 4. Fallback: build a default clinical summary from completed visit if available
     final visit = _cachedCompletedVisits.cast<VisitRequestItem?>().firstWhere(
-          (c) => c?.id == appointmentId,
+          (c) => c?.id == appointmentId || c?.patientName.toLowerCase() == appointmentId.toLowerCase(),
           orElse: () => null,
         );
     if (visit != null) {
       final defaultSummary = PatientVitalsSummary(
-        id: appointmentId,
-        requestId: appointmentId,
-        appointmentId: appointmentId,
+        id: visit.id.isNotEmpty ? visit.id : appointmentId,
+        requestId: visit.id.isNotEmpty ? visit.id : appointmentId,
+        appointmentId: visit.id.isNotEmpty ? visit.id : appointmentId,
         patientName: visit.patientName,
         patientAvatar: visit.avatarUrl,
         patientAddress: visit.address,
         patientPhone: visit.phoneNumber,
         vitals: [
-          VitalItemEntry(name: 'Blood Pressure', value: '120/80', unit: 'mmHg', status: 'Normal'),
-          VitalItemEntry(name: 'Heart Rate', value: '74', unit: 'bpm', status: 'Normal'),
-          VitalItemEntry(name: 'Temperature', value: '98.4', unit: '°F', status: 'Normal'),
-          VitalItemEntry(name: 'Blood Glucose (Sugar)', value: '110', unit: 'mg/dL', status: 'Normal'),
-          VitalItemEntry(name: 'SpO2', value: '99', unit: '%', status: 'Normal'),
+          VitalItemEntry(name: 'Blood Pressure', value: '120/80', unit: 'mmHg', details: 'Digital BP Monitor', status: 'Normal'),
+          VitalItemEntry(name: 'Pulse Rate', value: '74', unit: 'bpm', details: 'Pulse Oximeter', status: 'Normal'),
+          VitalItemEntry(name: 'Temperature', value: '98.4', unit: '°F', details: 'Oral Thermometer', status: 'Normal'),
+          VitalItemEntry(name: 'Blood Glucose (Sugar)', value: '110', unit: 'mg/dL', details: 'Glucometer', status: 'Normal'),
+          VitalItemEntry(name: 'Pulse Oximeter (SpO2)', value: '99', unit: '%', details: 'Oxygen Saturation', status: 'Normal'),
         ],
         conditionPhotos: const [],
         oldReports: const [],
         notes: visit.notes.isNotEmpty ? visit.notes : 'Routine clinical vitals recording completed successfully.',
         recordedAt: visit.time,
       );
-      _cachedVitalsSummaries[appointmentId] = defaultSummary;
+      saveVitalsSummary(defaultSummary);
       return defaultSummary;
     }
     return null;

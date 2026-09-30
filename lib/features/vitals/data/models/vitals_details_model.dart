@@ -106,22 +106,132 @@ class PatientVitalsSummary {
 
   factory PatientVitalsSummary.fromJson(Map<String, dynamic> json) {
     final rawVitals = json['vitals'] as List? ?? [];
-    final rawPhotos = json['conditionPhotos'] as List? ?? [];
-    final rawReports = json['oldReports'] as List? ?? [];
+    final rawPhotos = json['conditionPhotos'] as List? ?? json['condition_photos'] as List? ?? json['conditionImages'] as List? ?? [];
+    final rawReports = json['oldReports'] as List? ?? json['old_reports'] as List? ?? json['reports'] as List? ?? [];
+
+    final List<VitalItemEntry> parsedVitals = [];
+
+    if (rawVitals.isNotEmpty) {
+      for (final item in rawVitals) {
+        if (item is Map<String, dynamic>) {
+          parsedVitals.add(VitalItemEntry.fromJson(item));
+        }
+      }
+    }
+
+    // Fallback: If vitals list is not provided or empty, check flat JSON fields
+    if (parsedVitals.isEmpty) {
+      final bp = json['bloodPressure']?.toString() ?? json['bp']?.toString() ?? json['bpValue']?.toString();
+      final hr = json['heartRate']?.toString() ?? json['pulse']?.toString() ?? json['pulseRate']?.toString();
+      final temp = json['temperature']?.toString() ?? json['temp']?.toString();
+      final sugar = json['bloodSugar']?.toString() ?? json['sugar']?.toString() ?? json['glucose']?.toString();
+      final spo2 = json['spo2']?.toString() ?? json['oxygen']?.toString();
+      final weight = json['weight']?.toString();
+
+      if (bp != null && bp.isNotEmpty) {
+        parsedVitals.add(VitalItemEntry(
+          name: 'Blood Pressure',
+          value: bp,
+          unit: 'mmHg',
+          details: 'Standard BP Reading',
+          fileUrl: json['bp_image']?.toString() ?? json['bpImage']?.toString() ?? '',
+        ));
+      }
+      if (hr != null && hr.isNotEmpty) {
+        parsedVitals.add(VitalItemEntry(
+          name: 'Heart Rate',
+          value: hr,
+          unit: 'bpm',
+          details: 'Radial Pulse',
+          fileUrl: json['pulse_image']?.toString() ?? json['pulseImage']?.toString() ?? '',
+        ));
+      }
+      if (temp != null && temp.isNotEmpty) {
+        parsedVitals.add(VitalItemEntry(
+          name: 'Temperature',
+          value: temp,
+          unit: '°F',
+          details: 'Thermometer',
+          fileUrl: json['temp_image']?.toString() ?? json['tempImage']?.toString() ?? '',
+        ));
+      }
+      if (sugar != null && sugar.isNotEmpty && sugar != '0') {
+        parsedVitals.add(VitalItemEntry(
+          name: 'Blood Glucose (Sugar)',
+          value: sugar,
+          unit: 'mg/dL',
+          details: 'Glucometer Reading',
+          fileUrl: json['sugar_image']?.toString() ?? json['sugarImage']?.toString() ?? '',
+        ));
+      }
+      if (spo2 != null && spo2.isNotEmpty && spo2 != '0') {
+        parsedVitals.add(VitalItemEntry(
+          name: 'Pulse Oximeter (SpO2)',
+          value: spo2,
+          unit: '%',
+          details: 'Oxygen Saturation',
+          fileUrl: json['spo2_image']?.toString() ?? json['spo2Image']?.toString() ?? '',
+        ));
+      }
+      if (weight != null && weight.isNotEmpty && weight != '0' && weight != '0.0') {
+        parsedVitals.add(VitalItemEntry(
+          name: 'Weight',
+          value: weight,
+          unit: 'kg',
+          details: 'Body Weight',
+          fileUrl: json['weight_image']?.toString() ?? json['weightImage']?.toString() ?? '',
+        ));
+      }
+
+      if (json['customVitals'] is List) {
+        for (final cv in json['customVitals'] as List) {
+          if (cv is Map) {
+            parsedVitals.add(VitalItemEntry(
+              name: cv['type']?.toString() ?? cv['name']?.toString() ?? 'Custom Vital',
+              value: cv['value']?.toString() ?? '',
+              unit: cv['unit']?.toString() ?? '',
+              fileUrl: cv['imagePath']?.toString() ?? cv['fileUrl']?.toString() ?? '',
+            ));
+          }
+        }
+      }
+    }
+
+    final List<ConditionPhotoEntry> parsedPhotos = [];
+    for (final item in rawPhotos) {
+      if (item is Map<String, dynamic>) {
+        parsedPhotos.add(ConditionPhotoEntry.fromJson(item));
+      } else if (item is String && item.isNotEmpty) {
+        parsedPhotos.add(ConditionPhotoEntry(url: item, caption: 'Condition Photo'));
+      }
+    }
+
+    final List<OldReportEntry> parsedReports = [];
+    for (final item in rawReports) {
+      if (item is Map<String, dynamic>) {
+        parsedReports.add(OldReportEntry.fromJson(item));
+      } else if (item is String && item.isNotEmpty) {
+        parsedReports.add(OldReportEntry(
+          url: item,
+          name: item.split(RegExp(r'[/\\]')).last,
+          type: item.toLowerCase().endsWith('.pdf') ? 'PDF Report' : 'Medical Report',
+        ));
+      }
+    }
 
     return PatientVitalsSummary(
-      id: json['id']?.toString() ?? json['_id']?.toString() ?? json['requestId']?.toString() ?? '',
+      id: json['id']?.toString() ?? json['_id']?.toString() ?? json['requestId']?.toString() ?? json['appointmentId']?.toString() ?? '',
       requestId: json['requestId']?.toString() ?? json['id']?.toString() ?? '',
-      appointmentId: json['appointmentId']?.toString() ?? '',
+      appointmentId: json['appointmentId']?.toString() ?? json['id']?.toString() ?? '',
       familyMemberId: json['familyMemberId']?.toString() ?? '',
       patientName: json['patientName']?.toString() ?? json['patient']?['name']?.toString() ?? 'Patient',
       patientPhone: json['patientPhone']?.toString() ?? json['patient']?['phone']?.toString() ?? '',
       patientAvatar: json['patientAvatar']?.toString() ?? json['patient']?['avatar']?.toString() ?? '',
       patientAddress: json['patientAddress']?.toString() ?? json['patient']?['address']?.toString() ?? '',
-      vitals: rawVitals.whereType<Map<String, dynamic>>().map(VitalItemEntry.fromJson).toList(),
-      conditionPhotos: rawPhotos.whereType<Map<String, dynamic>>().map(ConditionPhotoEntry.fromJson).toList(),
-      oldReports: rawReports.whereType<Map<String, dynamic>>().map(OldReportEntry.fromJson).toList(),
-      notes: json['notes']?.toString() ?? '',
+      vitals: parsedVitals,
+      conditionPhotos: parsedPhotos,
+      oldReports: parsedReports,
+      notes: json['notes']?.toString() ?? json['reason']?.toString() ?? '',
       recordedAt: json['recordedAt']?.toString() ?? json['createdAt']?.toString() ?? '',
     );
   }

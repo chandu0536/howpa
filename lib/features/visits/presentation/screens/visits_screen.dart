@@ -9,6 +9,7 @@ import 'package:howpa_nurse/core/services/booking_notification_manager.dart';
 import 'package:howpa_nurse/features/visits/data/models/visit_models.dart';
 import 'package:howpa_nurse/features/visits/data/repositories/visits_repository.dart';
 import 'package:howpa_nurse/features/vitals/presentation/widgets/view_vitals_bottom_sheet.dart';
+import 'package:howpa_nurse/features/vitals/data/models/vitals_details_model.dart';
 
 // Data models for each tab
 class NewRequestItem {
@@ -123,6 +124,7 @@ class CompletedVisitItem {
   final String doctorName;
   final String address;
   final String avatarUrl;
+  final PatientVitalsSummary? vitalsSummary;
 
   CompletedVisitItem({
     required this.id,
@@ -132,6 +134,7 @@ class CompletedVisitItem {
     required this.doctorName,
     required this.address,
     required this.avatarUrl,
+    this.vitalsSummary,
   });
 }
 
@@ -653,9 +656,14 @@ class _VisitsScreenState extends State<VisitsScreen> {
       ),
     );
 
-    if (result == true) {
+    if (result != null && (result == true || result is PatientVitalsSummary)) {
+      final PatientVitalsSummary? returnedSummary = result is PatientVitalsSummary ? result : null;
       final idx = _todayVisits.indexWhere((v) => v.id == item.id);
       final completedItem = idx != -1 ? _todayVisits.removeAt(idx) : item;
+
+      if (returnedSummary != null) {
+        VisitsRepositoryImpl.saveVitalsSummary(returnedSummary);
+      }
 
       setState(() {
         if (!_completedGroups.containsKey('This Week')) {
@@ -671,6 +679,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
           doctorName: completedItem.doctorName.isNotEmpty ? completedItem.doctorName : 'Doctor',
           address: completedItem.address,
           avatarUrl: completedItem.avatarUrl,
+          vitalsSummary: returnedSummary,
         ));
 
         // Auto switch to Completed tab
@@ -1983,7 +1992,9 @@ class _VisitsScreenState extends State<VisitsScreen> {
                         height: 40,
                         child: OutlinedButton.icon(
                           onPressed: () async {
-                            final summary = await _visitsRepo.getVitalsForAppointment(item.id);
+                            PatientVitalsSummary? summary = item.vitalsSummary;
+                            summary ??= await _visitsRepo.getVitalsForAppointment(item.id);
+                            summary ??= await _visitsRepo.getVitalsForAppointment(item.patientName);
                             if (summary != null && mounted) {
                               ViewVitalsBottomSheet.show(context, summary);
                             }

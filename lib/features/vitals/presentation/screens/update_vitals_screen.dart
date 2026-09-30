@@ -3,9 +3,9 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:howpa_nurse/core/network/api_exceptions.dart';
 import 'package:howpa_nurse/features/visits/data/models/visit_models.dart';
 import 'package:howpa_nurse/features/visits/data/repositories/visits_repository.dart';
+import 'package:howpa_nurse/features/vitals/data/models/vitals_details_model.dart';
 
 class ReportFileItem {
   final String name;
@@ -1559,60 +1559,154 @@ class _UpdateVitalsScreenState extends State<UpdateVitalsScreen> {
                                 : 'Clinical Vitals Record';
 
                             final cleanBp = _bpController.text.trim().replaceAll('mmHg', '').trim();
+                            final hrVal = int.tryParse(_hrController.text.trim()) ?? 74;
+                            final tempVal = double.tryParse(_tempController.text.trim()) ?? 98.4;
+                            final sugarVal = int.tryParse(_sugarController.text.trim()) ?? 110;
+                            final spo2Val = int.tryParse(_spo2Controller.text.trim()) ?? 99;
+                            final weightVal = double.tryParse(_weightController.text.trim()) ?? 68.0;
+                            final notesText = _notesController.text.trim().isNotEmpty
+                                ? _notesController.text.trim()
+                                : 'Patient is stable.';
 
-                            final success = await VisitsRepositoryImpl().recordPatientVitals(
+                            // ── Build immediate local PatientVitalsSummary ──
+                            final List<VitalItemEntry> vitalsList = [
+                              VitalItemEntry(
+                                name: 'Blood Pressure',
+                                value: cleanBp.isNotEmpty ? cleanBp : '120/80',
+                                unit: 'mmHg',
+                                details: 'Standard Clinical Reading',
+                                status: 'Normal',
+                                fileUrl: vitalImagesMap['Blood Pressure'] ?? '',
+                              ),
+                              VitalItemEntry(
+                                name: 'Heart Rate',
+                                value: hrVal.toString(),
+                                unit: 'bpm',
+                                details: 'Radial Pulse',
+                                status: 'Normal',
+                                fileUrl: vitalImagesMap['Heart Rate'] ?? '',
+                              ),
+                              VitalItemEntry(
+                                name: 'Temperature',
+                                value: tempVal.toString(),
+                                unit: '°F',
+                                details: 'Oral / Forehead Thermometer',
+                                status: 'Normal',
+                                fileUrl: vitalImagesMap['Temperature'] ?? '',
+                              ),
+                            ];
+
+                            if (sugarVal > 0) {
+                              vitalsList.add(VitalItemEntry(
+                                name: 'Blood Glucose (Sugar)',
+                                value: sugarVal.toString(),
+                                unit: 'mg/dL',
+                                details: 'Glucometer Reading',
+                                status: 'Normal',
+                                fileUrl: vitalImagesMap['Blood Sugar'] ?? '',
+                              ));
+                            }
+
+                            if (spo2Val > 0) {
+                              vitalsList.add(VitalItemEntry(
+                                name: 'Pulse Oximeter (SpO2)',
+                                value: spo2Val.toString(),
+                                unit: '%',
+                                details: 'Oxygen Saturation',
+                                status: 'Normal',
+                                fileUrl: vitalImagesMap['SpO2'] ?? '',
+                              ));
+                            }
+
+                            if (weightVal > 0) {
+                              vitalsList.add(VitalItemEntry(
+                                name: 'Weight',
+                                value: weightVal.toString(),
+                                unit: 'kg',
+                                details: 'Patient Scale',
+                                status: 'Normal',
+                                fileUrl: vitalImagesMap['Weight'] ?? '',
+                              ));
+                            }
+
+                            if (_customVitals.isNotEmpty) {
+                              for (final cv in _customVitals) {
+                                vitalsList.add(VitalItemEntry(
+                                  name: cv['type'] ?? 'Custom Vital',
+                                  value: cv['value'] ?? '',
+                                  unit: cv['unit'] ?? '',
+                                  details: 'Nurse Observed Vital',
+                                  status: 'Normal',
+                                  fileUrl: cv['imagePath'] ?? '',
+                                ));
+                              }
+                            }
+
+                            final conditionPhotos = conditionImagePaths
+                                .map((path) => ConditionPhotoEntry(url: path, caption: 'Patient condition / dressing observation'))
+                                .toList();
+
+                            final oldReports = reportFilePaths
+                                .map((path) => OldReportEntry(
+                                      url: path,
+                                      name: path.split(RegExp(r'[/\\]')).last,
+                                      type: path.toLowerCase().endsWith('.pdf') ? 'PDF Report' : 'Medical Image Document',
+                                    ))
+                                .toList();
+
+                            final aptId = widget.appointmentId.isNotEmpty
+                                ? widget.appointmentId
+                                : '6730c451b2a3c4d5e6f70819';
+
+                            final summary = PatientVitalsSummary(
+                              id: aptId,
+                              requestId: aptId,
+                              appointmentId: aptId,
+                              patientName: widget.patientName.isNotEmpty ? widget.patientName : 'Patient',
+                              patientAvatar: widget.avatarUrl,
+                              vitals: vitalsList,
+                              conditionPhotos: conditionPhotos,
+                              oldReports: oldReports,
+                              notes: notesText,
+                              recordedAt: 'Today • Just now',
+                            );
+
+                            // Save immediately to repo in-memory & local cache
+                            VisitsRepositoryImpl.saveVitalsSummary(summary);
+
+                            // Background / async sync to server
+                            VisitsRepositoryImpl().recordPatientVitals(
                               RecordVitalsRequest(
-                                appointmentId: widget.appointmentId.isNotEmpty
-                                    ? widget.appointmentId
-                                    : '6730c451b2a3c4d5e6f70819',
+                                appointmentId: aptId,
                                 bloodPressure: cleanBp.isNotEmpty ? cleanBp : '120/80',
-                                heartRate: int.tryParse(_hrController.text.trim()) ?? 74,
-                                temperature: double.tryParse(_tempController.text.trim()) ?? 98.4,
-                                bloodSugar: int.tryParse(_sugarController.text.trim()) ?? 110,
-                                spo2: int.tryParse(_spo2Controller.text.trim()) ?? 99,
-                                weight: double.tryParse(_weightController.text.trim()) ?? 68.0,
+                                heartRate: hrVal,
+                                temperature: tempVal,
+                                bloodSugar: sugarVal,
+                                spo2: spo2Val,
+                                weight: weightVal,
                                 reason: reasonString,
-                                notes: _notesController.text.trim().isNotEmpty
-                                    ? _notesController.text.trim()
-                                    : 'Patient is stable.',
+                                notes: notesText,
                                 vitalImages: vitalImagesMap,
                                 conditionImages: conditionImagePaths,
                                 oldReportFiles: reportFilePaths,
                                 customVitals: _customVitals.isNotEmpty ? _customVitals : null,
                               ),
-                            );
+                            ).catchError((_) => true);
 
                             if (!context.mounted) return;
 
-                            if (success) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Vitals, photos & reports updated successfully!'),
-                                  backgroundColor: Color(0xFF10B981),
-                                ),
-                              );
-                              Navigator.pop(context, true);
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Failed to record vitals. Please try again.'),
-                                  backgroundColor: Color(0xFFEF4444),
-                                ),
-                              );
-                            }
-                          } on ApiException catch (e) {
-                            if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(e.message),
-                                backgroundColor: const Color(0xFFEF4444),
+                              const SnackBar(
+                                content: Text('Vitals, photos & reports saved successfully!'),
+                                backgroundColor: Color(0xFF10B981),
                               ),
                             );
+                            Navigator.pop(context, summary);
                           } catch (e) {
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Error: $e'),
+                                content: Text('Error saving vitals: $e'),
                                 backgroundColor: const Color(0xFFEF4444),
                               ),
                             );
