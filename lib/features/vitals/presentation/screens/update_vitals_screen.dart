@@ -93,9 +93,28 @@ class _UpdateVitalsScreenState extends State<UpdateVitalsScreen> {
   @override
   void initState() {
     super.initState();
+    _checkLostImageData();
     _bpController.addListener(_validateForm);
     _hrController.addListener(_validateForm);
     _tempController.addListener(_validateForm);
+  }
+
+  Future<void> _checkLostImageData() async {
+    try {
+      final LostDataResponse response = await _picker.retrieveLostData();
+      if (response.isEmpty) return;
+      final file = response.file;
+      if (file != null && mounted) {
+        final f = File(file.path);
+        if (f.existsSync()) {
+          setState(() {
+            _conditionImages.add(file);
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error retrieving lost vitals image data: $e');
+    }
   }
 
   void _validateForm() {
@@ -551,6 +570,7 @@ class _UpdateVitalsScreenState extends State<UpdateVitalsScreen> {
         title: 'Upload Proof for $vitalTitle',
       );
       if (source == null) return;
+      await Future.delayed(const Duration(milliseconds: 150));
 
       final XFile? image = await _picker.pickImage(
         source: source,
@@ -584,6 +604,7 @@ class _UpdateVitalsScreenState extends State<UpdateVitalsScreen> {
         subtitle: 'Capture or select photos of wounds, swelling, or physical observations.',
       );
       if (source == null) return;
+      await Future.delayed(const Duration(milliseconds: 150));
 
       final XFile? image = await _picker.pickImage(
         source: source,
