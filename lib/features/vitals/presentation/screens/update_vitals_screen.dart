@@ -685,6 +685,7 @@ class _UpdateVitalsScreenState extends State<UpdateVitalsScreen> {
                   onTap: () async {
                     final messenger = ScaffoldMessenger.of(context);
                     Navigator.pop(context);
+                    await Future.delayed(const Duration(milliseconds: 150));
                     try {
                       final XFile? image = await _picker.pickImage(
                         source: ImageSource.camera,
@@ -724,6 +725,7 @@ class _UpdateVitalsScreenState extends State<UpdateVitalsScreen> {
                   onTap: () async {
                     final messenger = ScaffoldMessenger.of(context);
                     Navigator.pop(context);
+                    await Future.delayed(const Duration(milliseconds: 150));
                     try {
                       final XFile? image = await _picker.pickImage(
                         source: ImageSource.gallery,
