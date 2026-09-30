@@ -117,6 +117,19 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                         icon: Icons.person_outline_rounded,
                       ),
                       _buildDetailCard(
+                        title: 'Gender',
+                        value: profile.gender.isNotEmpty ? profile.gender : 'Female',
+                        icon: (profile.gender.trim().toLowerCase() == 'male' || profile.gender.trim().toLowerCase() == 'm')
+                            ? Icons.male_rounded
+                            : Icons.female_rounded,
+                      ),
+                      if (profile.dob.trim().isNotEmpty)
+                        _buildDetailCard(
+                          title: 'Date of Birth',
+                          value: profile.dob,
+                          icon: Icons.calendar_today_outlined,
+                        ),
+                      _buildDetailCard(
                         title: 'Mobile Number',
                         value: profile.phoneNumber,
                         icon: Icons.phone_outlined,
