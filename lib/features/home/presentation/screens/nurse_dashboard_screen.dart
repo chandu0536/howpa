@@ -324,6 +324,7 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
                   } else {
                     _visitRequestTimer?.cancel();
                     _visitRequestTimer = null;
+                    BookingNotificationManager.stopBuzzer();
                     if (BookingNotificationManager.isPopupShowing) {
                       BookingNotificationManager.isPopupShowing = false;
                       if (Navigator.canPop(context)) {

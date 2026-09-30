@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:howpa_nurse/features/visits/data/models/visit_models.dart';
 
 class BookingNotificationManager {
   static bool isPopupShowing = false;
   static final Set<String> _shownRequestIds = {};
+  static AudioPlayer? _audioPlayer;
 
   static void markAsShown(String id) {
     _shownRequestIds.add(id);
@@ -13,8 +15,19 @@ class BookingNotificationManager {
     return _shownRequestIds.contains(id);
   }
 
+  static Future<void> stopBuzzer() async {
+    try {
+      if (_audioPlayer != null) {
+        await _audioPlayer?.stop();
+        await _audioPlayer?.dispose();
+        _audioPlayer = null;
+      }
+    } catch (_) {}
+  }
+
   static void reset() {
     isPopupShowing = false;
+    stopBuzzer();
   }
 
   static Future<void> showNewBookingDialog({
@@ -28,7 +41,19 @@ class BookingNotificationManager {
     isPopupShowing = true;
     _shownRequestIds.add(item.id);
 
+    // Play Buzzer Audio (Looping until accepted or rejected)
     try {
+      await stopBuzzer();
+      _audioPlayer = AudioPlayer();
+      await _audioPlayer!.setReleaseMode(ReleaseMode.loop);
+      await _audioPlayer!.setVolume(1.0);
+      await _audioPlayer!.play(AssetSource('images/buzzer_gojek.mp3'));
+    } catch (e) {
+      debugPrint('Error playing buzzer audio: $e');
+    }
+
+    try {
+      if (!context.mounted) return;
       await showDialog(
         context: context,
         barrierDismissible: false,
@@ -252,6 +277,7 @@ class BookingNotificationManager {
       );
     } finally {
       isPopupShowing = false;
+      await stopBuzzer();
     }
   }
 }
