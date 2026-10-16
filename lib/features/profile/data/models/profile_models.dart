@@ -222,3 +222,141 @@ class SpecializationItem {
     );
   }
 }
+
+class FaqItem {
+  final String question;
+  final String answer;
+  final String? category;
+
+  const FaqItem({
+    required this.question,
+    required this.answer,
+    this.category,
+  });
+
+  factory FaqItem.fromJson(Map<String, dynamic> json) {
+    return FaqItem(
+      question: json['question']?.toString() ?? json['q']?.toString() ?? json['title']?.toString() ?? '',
+      answer: json['answer']?.toString() ?? json['a']?.toString() ?? json['description']?.toString() ?? '',
+      category: json['category']?.toString(),
+    );
+  }
+}
+
+class HelpSupportData {
+  final String supportPhone;
+  final String supportEmail;
+  final String whatsappNumber;
+  final String operatingHours;
+  final List<FaqItem> faqs;
+
+  const HelpSupportData({
+    this.supportPhone = '+91 91212 34567',
+    this.supportEmail = 'support@howpa.com',
+    this.whatsappNumber = '+91 91212 34567',
+    this.operatingHours = '24/7 Nurse Partner Support',
+    this.faqs = const [],
+  });
+
+  factory HelpSupportData.fromJson(Map<String, dynamic> json) {
+    List<FaqItem> parsedFaqs = [];
+    final dynamic rawFaqs = json['faqs'] ?? json['faq'] ?? json['questions'] ?? json['data'];
+    if (rawFaqs is List) {
+      parsedFaqs = rawFaqs
+          .whereType<Map<String, dynamic>>()
+          .map((f) => FaqItem.fromJson(f))
+          .toList();
+    }
+    return HelpSupportData(
+      supportPhone: json['supportPhone']?.toString() ?? json['phone']?.toString() ?? '+91 91212 34567',
+      supportEmail: json['supportEmail']?.toString() ?? json['email']?.toString() ?? 'support@howpa.com',
+      whatsappNumber: json['whatsappNumber']?.toString() ?? json['whatsapp']?.toString() ?? '+91 91212 34567',
+      operatingHours: json['operatingHours']?.toString() ?? json['timing']?.toString() ?? '24/7 Nurse Partner Support',
+      faqs: parsedFaqs,
+    );
+  }
+}
+
+class LegalSection {
+  final String title;
+  final String content;
+
+  const LegalSection({required this.title, required this.content});
+
+  factory LegalSection.fromJson(Map<String, dynamic> json) {
+    return LegalSection(
+      title: json['title']?.toString() ?? json['heading']?.toString() ?? '',
+      content: json['content']?.toString() ?? json['body']?.toString() ?? json['text']?.toString() ?? '',
+    );
+  }
+}
+
+class LegalDocumentsData {
+  final String termsContent;
+  final String privacyContent;
+  final List<LegalSection> termsSections;
+  final List<LegalSection> privacySections;
+  final String lastUpdated;
+  final String version;
+
+  const LegalDocumentsData({
+    this.termsContent = '',
+    this.privacyContent = '',
+    this.termsSections = const [],
+    this.privacySections = const [],
+    this.lastUpdated = 'October 2026',
+    this.version = '1.0.0',
+  });
+
+  factory LegalDocumentsData.fromJson(Map<String, dynamic> json) {
+    final termsData = json['terms'] ?? json['termsAndConditions'] ?? json['terms_and_conditions'];
+    final privacyData = json['privacy'] ?? json['privacyPolicy'] ?? json['privacy_policy'];
+
+    String termsStr = '';
+    List<LegalSection> tSections = [];
+    if (termsData is String) {
+      termsStr = termsData;
+    } else if (termsData is Map<String, dynamic>) {
+      termsStr = termsData['content']?.toString() ?? '';
+      if (termsData['sections'] is List) {
+        tSections = (termsData['sections'] as List)
+            .whereType<Map<String, dynamic>>()
+            .map((s) => LegalSection.fromJson(s))
+            .toList();
+      }
+    } else if (termsData is List) {
+      tSections = termsData
+          .whereType<Map<String, dynamic>>()
+          .map((s) => LegalSection.fromJson(s))
+          .toList();
+    }
+
+    String privacyStr = '';
+    List<LegalSection> pSections = [];
+    if (privacyData is String) {
+      privacyStr = privacyData;
+    } else if (privacyData is Map<String, dynamic>) {
+      privacyStr = privacyData['content']?.toString() ?? '';
+      if (privacyData['sections'] is List) {
+        pSections = (privacyData['sections'] as List)
+            .whereType<Map<String, dynamic>>()
+            .map((s) => LegalSection.fromJson(s))
+            .toList();
+      }
+    } else if (privacyData is List) {
+      pSections = privacyData
+          .whereType<Map<String, dynamic>>()
+          .map((s) => LegalSection.fromJson(s))
+          .toList();
+    }
+
+    return LegalDocumentsData(
+      termsContent: termsStr,
+      privacyContent: privacyStr,
+      termsSections: tSections,
+      privacySections: pSections,
+      lastUpdated: json['lastUpdated']?.toString() ?? 'October 2026',
+      version: json['version']?.toString() ?? '1.0.0',
+    );
+  }
+}

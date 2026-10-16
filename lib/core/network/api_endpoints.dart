@@ -35,4 +35,10 @@ class ApiEndpoints {
   // 6. Notifications & Device Tokens
   static String get notifications => '$baseUrl/api/nurse/notifications';
   static String get deviceToken => '$baseUrl/api/nurse/notifications/device-token';
+
+  // 7. Support, Legal & Account Deletion
+  static String get deleteAccount => '$baseUrl/api/nurse/account';
+  static String get helpSupport => '$baseUrl/api/nurse/support';
+  static String get supportTicket => '$baseUrl/api/nurse/support/ticket';
+  static String get termsAndPrivacy => '$baseUrl/api/nurse/legal';
 }

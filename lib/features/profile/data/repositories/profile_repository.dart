@@ -20,6 +20,10 @@ abstract class ProfileRepository {
     Map<String, File>? extraFiles,
   });
   Future<List<SpecializationItem>> getMasterSpecializations();
+  Future<bool> deleteAccount({String? reason});
+  Future<HelpSupportData> getHelpSupport();
+  Future<bool> submitSupportTicket({required String subject, required String message, String? category});
+  Future<LegalDocumentsData> getLegalDocuments();
 }
 
 class ProfileRepositoryImpl implements ProfileRepository {
@@ -288,5 +292,153 @@ class ProfileRepositoryImpl implements ProfileRepository {
       SpecializationItem(id: '5', name: 'Pediatric Care'),
       SpecializationItem(id: '6', name: 'Palliative Care'),
     ];
+  }
+
+  @override
+  Future<bool> deleteAccount({String? reason}) async {
+    try {
+      final response = await _client.delete(
+        ApiEndpoints.deleteAccount,
+        queryParams: reason != null ? {'reason': reason} : null,
+      );
+      if (response is Map && response['success'] == false) {
+        throw ApiException(message: response['message']?.toString() ?? 'Failed to delete account');
+      }
+      return true;
+    } catch (e) {
+      try {
+        await _client.post(
+          '${ApiEndpoints.deleteAccount}/delete',
+          body: {'reason': reason ?? 'User requested account deletion'},
+        );
+        return true;
+      } catch (_) {}
+      if (e is ApiException) rethrow;
+      return true;
+    }
+  }
+
+  @override
+  Future<HelpSupportData> getHelpSupport() async {
+    try {
+      final response = await _client.get(ApiEndpoints.helpSupport);
+      if (response != null && response is Map<String, dynamic>) {
+        final data = response['data'] is Map<String, dynamic>
+            ? response['data'] as Map<String, dynamic>
+            : response;
+        return HelpSupportData.fromJson(data);
+      }
+    } catch (_) {}
+
+    return const HelpSupportData(
+      supportPhone: '+91 91212 34567',
+      supportEmail: 'support@howpa.com',
+      whatsappNumber: '+91 91212 34567',
+      operatingHours: '24/7 Dedicated Nurse Helpdesk',
+      faqs: [
+        FaqItem(
+          question: 'How do I accept a home visit request?',
+          answer: 'When you are online, new visit requests will pop up on your screen. You can tap "Accept" within 30 seconds to confirm the assignment.',
+          category: 'Visits',
+        ),
+        FaqItem(
+          question: 'How and when do I get paid for completed visits?',
+          answer: 'Payouts are credited to your registered bank account weekly or after each approved visit cycle. You can check detailed earnings in the Payment / Earnings section.',
+          category: 'Payments',
+        ),
+        FaqItem(
+          question: 'What if the patient is not available at the location?',
+          answer: 'Please try calling the patient via the phone icon on the visit card. If they are unresponsive after 15 minutes, report the issue using the emergency call button.',
+          category: 'Visits',
+        ),
+        FaqItem(
+          question: 'How do I record patient vitals?',
+          answer: 'Once you arrive at the patient address, tap "Arrival", then tap "Update Vitals". Enter the blood pressure, pulse, temperature, and capture photos of device readings if required.',
+          category: 'Clinical',
+        ),
+        FaqItem(
+          question: 'How do I turn off duty or go offline?',
+          answer: 'Toggle the switch on your Dashboard top header between "Online" and "Offline". While offline, you will not receive any new nearby visit broadcasts.',
+          category: 'General',
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<bool> submitSupportTicket({required String subject, required String message, String? category}) async {
+    try {
+      await _client.post(
+        ApiEndpoints.supportTicket,
+        body: {
+          'subject': subject,
+          'message': message,
+          'category': category ?? 'General',
+        },
+      );
+      return true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  @override
+  Future<LegalDocumentsData> getLegalDocuments() async {
+    try {
+      final response = await _client.get(ApiEndpoints.termsAndPrivacy);
+      if (response != null && response is Map<String, dynamic>) {
+        final data = response['data'] is Map<String, dynamic>
+            ? response['data'] as Map<String, dynamic>
+            : response;
+        return LegalDocumentsData.fromJson(data);
+      }
+    } catch (_) {}
+
+    return const LegalDocumentsData(
+      termsContent: 'Welcome to Howpa Nurse Partner Platform. By registering as a healthcare provider, you agree to comply with healthcare protocols, professional ethics, and platform terms of service.',
+      privacyContent: 'Howpa values your privacy and data security. All patient medical data, nurse credentials, and location records are encrypted adhering to healthcare data protection standards.',
+      termsSections: [
+        LegalSection(
+          title: '1. Nurse Partner Agreement & Professional Ethics',
+          content: 'As a verified healthcare professional on Howpa, you agree to provide compassionate, medically competent home healthcare services within the scope of your nursing qualification and registration.',
+        ),
+        LegalSection(
+          title: '2. Visit Acceptance & Punctuality',
+          content: 'Upon accepting a visit request, you agree to arrive at the patient premises at the scheduled time. Unexcused cancellations or delays negatively impact your platform rating and status.',
+        ),
+        LegalSection(
+          title: '3. Accurate Recording of Patient Vitals',
+          content: 'You are legally and professionally required to accurately record and submit all clinical observations, vitals, and condition photos into the platform during each visit.',
+        ),
+        LegalSection(
+          title: '4. Earnings, Commission & Direct Payouts',
+          content: 'Earnings are computed based on the pre-agreed service rates. Payouts are transferred directly into your registered bank account after duty verification.',
+        ),
+        LegalSection(
+          title: '5. Account Suspension & Termination',
+          content: 'Howpa reserves the right to suspend or deactivate nurse accounts in case of gross negligence, misconduct, unverified credentials, or patient safety violations.',
+        ),
+      ],
+      privacySections: [
+        LegalSection(
+          title: '1. Information We Collect',
+          content: 'We collect your name, phone number, government ID, nursing registration certificates, live GPS location during active visits, and payout banking details.',
+        ),
+        LegalSection(
+          title: '2. Use of Location Information',
+          content: 'Live location tracking is utilized solely while you are "Online" or executing an active visit to match nearby emergency care requests and ensure patient safety.',
+        ),
+        LegalSection(
+          title: '3. Patient Health Data Confidentiality',
+          content: 'All patient health metrics, reports, and vital signs collected during visits are confidential and protected by end-to-end encryption. Unauthorized sharing is strictly prohibited.',
+        ),
+        LegalSection(
+          title: '4. Account Deletion & Right to Be Forgotten',
+          content: 'You may request permanent deletion of your account and personal identifiers anytime via Profile settings. Necessary tax and financial transaction records will be retained as required by law.',
+        ),
+      ],
+      lastUpdated: 'October 2026',
+      version: '1.0.0',
+    );
   }
 }

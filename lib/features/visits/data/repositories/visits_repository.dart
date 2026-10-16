@@ -113,7 +113,20 @@ class VisitsRepositoryImpl implements VisitsRepository {
           final fetched = listData
               .whereType<Map<String, dynamic>>()
               .map((item) => VisitRequestItem.fromJson(item))
-              .where((item) => !_locallyRejectedIds.contains(item.id) && !_locallyCompletedIds.contains(item.id))
+              .where((item) {
+                if (item.id.isEmpty) return false;
+                if (_locallyRejectedIds.contains(item.id)) return false;
+                if (_locallyCompletedIds.contains(item.id)) return false;
+                final st = item.status.toUpperCase();
+                if (st == 'COMPLETED' || st == 'DONE' || st == 'CANCELLED' || st == 'REJECTED') {
+                  if (st == 'COMPLETED' || st == 'DONE') {
+                    _locallyCompletedIds.add(item.id);
+                    _locallyAcceptedVisits.remove(item.id);
+                  }
+                  return false;
+                }
+                return true;
+              })
               .toList();
 
           final enriched = <VisitRequestItem>[];
@@ -170,13 +183,31 @@ class VisitsRepositoryImpl implements VisitsRepository {
 
           // Preserve locally accepted items until backend reflects them
           for (final localAcc in _locallyAcceptedVisits.values) {
-            if (!_cachedTodayVisits.any((t) => t.id == localAcc.id)) {
+            final st = localAcc.status.toUpperCase();
+            if (!_locallyCompletedIds.contains(localAcc.id) &&
+                !_locallyRejectedIds.contains(localAcc.id) &&
+                st != 'COMPLETED' &&
+                st != 'DONE' &&
+                st != 'CANCELLED' &&
+                st != 'REJECTED' &&
+                !_cachedTodayVisits.any((t) => t.id == localAcc.id)) {
               _cachedTodayVisits.add(localAcc);
             }
           }
         }
       }
     } catch (_) {}
+
+    // Final guard: remove any completed, cancelled, or rejected items
+    _cachedTodayVisits.removeWhere((item) =>
+      _locallyCompletedIds.contains(item.id) ||
+      _locallyRejectedIds.contains(item.id) ||
+      item.status.toUpperCase() == 'COMPLETED' ||
+      item.status.toUpperCase() == 'DONE' ||
+      item.status.toUpperCase() == 'CANCELLED' ||
+      item.status.toUpperCase() == 'REJECTED'
+    );
+
     return List.unmodifiable(_cachedTodayVisits);
   }
 
@@ -291,12 +322,16 @@ class VisitsRepositoryImpl implements VisitsRepository {
 
   @override
   Future<bool> updateVisitStatus(String appointmentId, String status) async {
-    // Instant local AJAX state update
-    final index = _cachedTodayVisits.indexWhere((r) => r.id == appointmentId);
-    if (index != -1) {
-      final item = _cachedTodayVisits[index];
-      if (status == 'COMPLETED') {
-        _cachedTodayVisits.removeAt(index);
+    final normStatus = status.toUpperCase();
+
+    if (normStatus == 'COMPLETED' || normStatus == 'DONE') {
+      _locallyCompletedIds.add(appointmentId);
+      _locallyAcceptedVisits.remove(appointmentId);
+
+      final index = _cachedTodayVisits.indexWhere((r) => r.id == appointmentId);
+      if (index != -1) {
+        final item = _cachedTodayVisits.removeAt(index);
+        _cachedCompletedVisits.removeWhere((c) => c.id == appointmentId);
         _cachedCompletedVisits.insert(0, VisitRequestItem(
           id: item.id,
           patientName: item.patientName,
@@ -310,8 +345,20 @@ class VisitsRepositoryImpl implements VisitsRepository {
           phoneNumber: item.phoneNumber,
           latitude: item.latitude,
           longitude: item.longitude,
+          isVitalsUpdated: item.isVitalsUpdated,
+          doctorName: item.doctorName,
         ));
       } else {
+        _cachedTodayVisits.removeWhere((r) => r.id == appointmentId);
+      }
+    } else if (normStatus == 'CANCELLED' || normStatus == 'REJECTED') {
+      _locallyRejectedIds.add(appointmentId);
+      _locallyAcceptedVisits.remove(appointmentId);
+      _cachedTodayVisits.removeWhere((r) => r.id == appointmentId);
+    } else {
+      final index = _cachedTodayVisits.indexWhere((r) => r.id == appointmentId);
+      if (index != -1) {
+        final item = _cachedTodayVisits[index];
         _cachedTodayVisits[index] = VisitRequestItem(
           id: item.id,
           patientName: item.patientName,
@@ -325,6 +372,8 @@ class VisitsRepositoryImpl implements VisitsRepository {
           phoneNumber: item.phoneNumber,
           latitude: item.latitude,
           longitude: item.longitude,
+          isVitalsUpdated: item.isVitalsUpdated,
+          doctorName: item.doctorName,
         );
       }
     }
@@ -461,6 +510,7 @@ class VisitsRepositoryImpl implements VisitsRepository {
 
     // ── Local state: mark visit as completed ──
     _locallyCompletedIds.add(request.appointmentId);
+    _locallyAcceptedVisits.remove(request.appointmentId);
     final idx =
         _cachedTodayVisits.indexWhere((t) => t.id == request.appointmentId);
     if (idx != -1) {

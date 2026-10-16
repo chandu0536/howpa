@@ -8,6 +8,8 @@ import 'package:howpa_nurse/features/vitals/presentation/screens/vitals_screen.d
 import 'package:howpa_nurse/features/profile/presentation/screens/personal_details_screen.dart';
 import 'package:howpa_nurse/features/profile/presentation/screens/payment_earnings_screen.dart';
 import 'package:howpa_nurse/features/profile/presentation/screens/vitals_history_screen.dart';
+import 'package:howpa_nurse/features/profile/presentation/screens/help_support_screen.dart';
+import 'package:howpa_nurse/features/profile/presentation/screens/terms_privacy_screen.dart';
 import 'package:howpa_nurse/core/services/user_profile_manager.dart';
 import 'package:howpa_nurse/features/profile/data/models/profile_models.dart';
 import 'package:howpa_nurse/features/profile/data/repositories/profile_repository.dart';
@@ -391,7 +393,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       icon: Icons.headset_mic_outlined,
                       iconColor: const Color(0xFF0052FF),
                       iconBgColor: const Color(0xFFEFF4FF),
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const HelpSupportScreen()),
+                        );
+                      },
                     ),
                     const Divider(height: 1, color: Color(0xFFF1F5F9), indent: 16, endIndent: 16),
                     _buildMenuItem(
@@ -399,7 +406,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       icon: Icons.policy_outlined,
                       iconColor: const Color(0xFFFF5C00),
                       iconBgColor: const Color(0xFFFFF4ED),
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const TermsPrivacyScreen()),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -464,6 +476,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
+
+              const SizedBox(height: 16),
+
+              // Delete Account Button (App Store / Play Store Requirement)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Center(
+                  child: TextButton.icon(
+                    onPressed: _showDeleteAccountDialog,
+                    icon: const Icon(Icons.delete_forever_rounded, color: Color(0xFFDC2626), size: 20),
+                    label: const Text(
+                      'Delete Account',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFDC2626),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
               
               const SizedBox(height: 40),
             ],
@@ -471,6 +504,110 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
       bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  void _showDeleteAccountDialog() {
+    final reasonController = TextEditingController();
+    bool isDeleting = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: const [
+              Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 28),
+              SizedBox(width: 8),
+              Text(
+                'Delete Account',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Are you sure you want to permanently delete your nurse partner account? This action cannot be undone.',
+                style: TextStyle(fontSize: 13.5, color: Color(0xFF475569), height: 1.4),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                '• All your active assignments and profile records will be closed.\n• Unclaimed earnings will require manual verification.\n• You will be immediately logged out.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.4),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'Reason (Optional)',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: reasonController,
+                decoration: InputDecoration(
+                  hintText: 'Tell us why you are leaving...',
+                  hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                  filled: true,
+                  fillColor: const Color(0xFFF8FAFC),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isDeleting ? null : () => Navigator.pop(ctx),
+              child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
+            ),
+            ElevatedButton(
+              onPressed: isDeleting
+                  ? null
+                  : () async {
+                      setDialogState(() => isDeleting = true);
+                      try {
+                        await _profileRepo.deleteAccount(reason: reasonController.text.trim());
+                      } catch (_) {}
+                      await TokenStorage.clear();
+                      if (ctx.mounted) Navigator.pop(ctx);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Your account has been deleted successfully.'),
+                            backgroundColor: Color(0xFFEF4444),
+                          ),
+                        );
+                        Navigator.pushNamedAndRemoveUntil(
+                          context,
+                          AppRoutes.phoneLogin,
+                          (route) => false,
+                        );
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: isDeleting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Text(
+                      'Delete Forever',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

@@ -80,7 +80,10 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
       setState(() {
         _stats = stats;
         _isOnline = stats.isOnline;
-        _todayVisits = visits;
+        _todayVisits = visits.where((v) {
+          final st = v.status.toUpperCase();
+          return st != 'COMPLETED' && st != 'DONE' && st != 'CANCELLED' && st != 'REJECTED';
+        }).toList();
       });
       await TokenStorage.saveOnlineStatus(_isOnline);
       if (_isOnline) {
@@ -538,13 +541,14 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
                       value: '${math.max(_stats.todayVisitsCount, _todayVisits.length)}',
                       valueColor: const Color(0xFF0052FF),
                       label: "Today's Visits",
-                      onTap: () {
-                        Navigator.push(
+                      onTap: () async {
+                        await Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => const VisitsScreen(initialTabIndex: 1),
                           ),
                         );
+                        if (mounted) _loadDashboardData();
                       },
                     ),
                   ),
@@ -557,13 +561,14 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
                       value: '${_stats.completedVisitsCount}',
                       valueColor: const Color(0xFFF97316),
                       label: 'Completed',
-                      onTap: () {
-                        Navigator.push(
+                      onTap: () async {
+                        await Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => const VisitsScreen(initialTabIndex: 2),
                           ),
                         );
+                        if (mounted) _loadDashboardData();
                       },
                     ),
                   ),
@@ -576,13 +581,14 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
                       value: '₹${_stats.todayEarnings.toStringAsFixed(0)}',
                       valueColor: const Color(0xFF16A34A),
                       label: 'Earnings Today',
-                      onTap: () {
-                        Navigator.push(
+                      onTap: () async {
+                        await Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => const PaymentEarningsScreen(),
                           ),
                         );
+                        if (mounted) _loadDashboardData();
                       },
                     ),
                   ),
@@ -657,13 +663,14 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
                     ),
                   ),
                   TextButton(
-                    onPressed: () {
-                      Navigator.push(
+                    onPressed: () async {
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => const VisitsScreen(initialTabIndex: 1),
                         ),
                       );
+                      if (mounted) _loadDashboardData();
                     },
                     style: TextButton.styleFrom(
                       padding: EdgeInsets.zero,
@@ -728,22 +735,25 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
         ),
         child: BottomNavigationBar(
           currentIndex: _currentBottomNavIndex,
-          onTap: (index) {
+          onTap: (index) async {
             if (index == 1) {
-              Navigator.push(
+              await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const VisitsScreen()),
               );
+              if (mounted) _loadDashboardData();
             } else if (index == 2) {
-              Navigator.push(
+              await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const VitalsScreen()),
               );
+              if (mounted) _loadDashboardData();
             } else if (index == 3) {
-              Navigator.push(
+              await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const ProfileScreen()),
               );
+              if (mounted) _loadDashboardData();
             } else {
               setState(() {
                 _currentBottomNavIndex = index;
@@ -874,8 +884,8 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
     VoidCallback? onTapCard,
   }) {
     return GestureDetector(
-      onTap: onTapCard ?? () {
-        Navigator.push(
+      onTap: onTapCard ?? () async {
+        await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => VisitsScreen(
@@ -884,6 +894,7 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen> with Single
             ),
           ),
         );
+        if (mounted) _loadDashboardData();
       },
       child: Container(
         padding: const EdgeInsets.all(14),
