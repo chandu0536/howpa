@@ -29,6 +29,21 @@ class NurseDashboardScreen extends StatefulWidget {
 
 class _NurseDashboardScreenState extends State<NurseDashboardScreen>
     with SingleTickerProviderStateMixin {
+  static String _cleanDisplayTime(String rawTime) {
+    if (rawTime.trim().isEmpty) return '';
+    var s = rawTime.trim();
+    final timeMatch = RegExp(r'(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)(?:\s*-\s*\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm))?)').firstMatch(s);
+    if (timeMatch != null) {
+      return timeMatch.group(1)!.trim();
+    }
+    s = s
+        .replaceAll(RegExp(r'^(Today|Scheduled)\s*[•,\-]?\s*', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\s*[•,\-]?\s*(Today|Scheduled)$', caseSensitive: false), '')
+        .trim();
+    if (s.toLowerCase() == 'today' || s.toLowerCase() == 'scheduled') return '';
+    return s;
+  }
+
   final _dashboardRepo = DashboardRepositoryImpl();
   final _visitsRepo = VisitsRepositoryImpl();
   final _profileRepo = ProfileRepositoryImpl();
@@ -1175,9 +1190,7 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (timeRange.isNotEmpty &&
-                              !timeRange.toLowerCase().contains('today') &&
-                              !timeRange.toLowerCase().contains('scheduled')) ...[
+                          if (_cleanDisplayTime(timeRange).isNotEmpty) ...[
                             Row(
                               children: [
                                 const Icon(
@@ -1188,7 +1201,7 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                                 const SizedBox(width: 4),
                                 Flexible(
                                   child: Text(
-                                    timeRange,
+                                    _cleanDisplayTime(timeRange),
                                     style: const TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,

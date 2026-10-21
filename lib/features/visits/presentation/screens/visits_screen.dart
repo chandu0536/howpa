@@ -326,6 +326,20 @@ class VisitsScreen extends StatefulWidget {
 }
 
 class _VisitsScreenState extends State<VisitsScreen> {
+  static String _cleanDisplayTime(String rawTime) {
+    if (rawTime.trim().isEmpty) return '';
+    var s = rawTime.trim();
+    final timeMatch = RegExp(r'(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)(?:\s*-\s*\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm))?)').firstMatch(s);
+    if (timeMatch != null) {
+      return timeMatch.group(1)!.trim();
+    }
+    s = s
+        .replaceAll(RegExp(r'^(Today|Scheduled)\s*[•,\-]?\s*', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\s*[•,\-]?\s*(Today|Scheduled)$', caseSensitive: false), '')
+        .trim();
+    if (s.toLowerCase() == 'today' || s.toLowerCase() == 'scheduled') return '';
+    return s;
+  }
   final _visitsRepo = VisitsRepositoryImpl();
   late int _selectedTabIndex; // 0: New Requests, 1: Today, 2: Completed
   late final PageController _pageController;
@@ -1981,6 +1995,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
 
                       // Appointment Time & Date Container (Time displayed above Date/Day to prevent overlap)
                       Container(
+                        width: double.infinity,
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF8FAFC),
@@ -1990,9 +2005,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            if (item.time.isNotEmpty &&
-                                !item.time.toLowerCase().contains('today') &&
-                                !item.time.toLowerCase().contains('scheduled')) ...[
+                            if (_cleanDisplayTime(item.time).isNotEmpty) ...[
                               Row(
                                 children: [
                                   const Icon(
@@ -2003,7 +2016,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
-                                      item.time,
+                                      _cleanDisplayTime(item.time),
                                       style: const TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
@@ -2344,64 +2357,6 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                     ),
                                   ),
                                 ],
-                                const SizedBox(height: 5),
-                                 Container(
-                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                                   decoration: BoxDecoration(
-                                     color: const Color(0xFFEFF6FF),
-                                     borderRadius: BorderRadius.circular(6),
-                                     border: Border.all(color: const Color(0xFFDBEAFE)),
-                                   ),
-                                   child: Column(
-                                     crossAxisAlignment: CrossAxisAlignment.start,
-                                     mainAxisSize: MainAxisSize.min,
-                                     children: [
-                                       if (item.timeInterval.isNotEmpty &&
-                                           !item.timeInterval.toLowerCase().contains('today') &&
-                                           !item.timeInterval.toLowerCase().contains('scheduled')) ...[
-                                         Row(
-                                           mainAxisSize: MainAxisSize.min,
-                                           children: [
-                                             const Icon(Icons.access_time_rounded, size: 12, color: Color(0xFF0052FF)),
-                                             const SizedBox(width: 4),
-                                             Flexible(
-                                               child: Text(
-                                                 item.timeInterval,
-                                                 maxLines: 1,
-                                                 overflow: TextOverflow.ellipsis,
-                                                 style: const TextStyle(
-                                                   fontSize: 11.5,
-                                                   fontWeight: FontWeight.bold,
-                                                   color: Color(0xFF0052FF),
-                                                 ),
-                                               ),
-                                             ),
-                                           ],
-                                         ),
-                                         const SizedBox(height: 3),
-                                       ],
-                                       Row(
-                                         mainAxisSize: MainAxisSize.min,
-                                         children: [
-                                           const Icon(Icons.calendar_month_rounded, size: 12, color: Color(0xFF64748B)),
-                                           const SizedBox(width: 4),
-                                           Flexible(
-                                             child: Text(
-                                               item.formattedAppointmentDate,
-                                               maxLines: 1,
-                                               overflow: TextOverflow.ellipsis,
-                                               style: const TextStyle(
-                                                 fontSize: 11,
-                                                 fontWeight: FontWeight.w600,
-                                                 color: Color(0xFF334155),
-                                               ),
-                                             ),
-                                           ),
-                                         ],
-                                       ),
-                                     ],
-                                   ),
-                                 ),
                               ],
                             ),
                           ),
@@ -2426,6 +2381,70 @@ class _VisitsScreenState extends State<VisitsScreen> {
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Appointment Time & Date Container (Full width across card: Time on TOP, Date & Day UNDER IT)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFDBEAFE)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (_cleanDisplayTime(item.timeInterval).isNotEmpty) ...[
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.access_time_rounded,
+                                    size: 13,
+                                    color: Color(0xFF0052FF),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      _cleanDisplayTime(item.timeInterval),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF0052FF),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                            ],
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.calendar_month_rounded,
+                                  size: 13,
+                                  color: Color(0xFF64748B),
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    item.formattedAppointmentDate,
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF1E293B),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
 
                       const SizedBox(height: 12),
@@ -2800,68 +2819,74 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                     ),
                                   ),
                                 ],
-                                const SizedBox(height: 4),
-                                 Container(
-                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                                   decoration: BoxDecoration(
-                                     color: const Color(0xFFECFDF5),
-                                     borderRadius: BorderRadius.circular(6),
-                                     border: Border.all(color: const Color(0xFFA7F3D0)),
-                                   ),
-                                   child: Column(
-                                     crossAxisAlignment: CrossAxisAlignment.start,
-                                     mainAxisSize: MainAxisSize.min,
-                                     children: [
-                                       if (item.dateTime.isNotEmpty &&
-                                           !item.dateTime.toLowerCase().contains('today') &&
-                                           !item.dateTime.toLowerCase().contains('scheduled')) ...[
-                                         Row(
-                                           mainAxisSize: MainAxisSize.min,
-                                           children: [
-                                             const Icon(Icons.access_time_rounded, size: 12, color: Color(0xFF059669)),
-                                             const SizedBox(width: 4),
-                                             Flexible(
-                                               child: Text(
-                                                 item.dateTime,
-                                                 maxLines: 1,
-                                                 overflow: TextOverflow.ellipsis,
-                                                 style: const TextStyle(
-                                                   fontSize: 11.5,
-                                                   fontWeight: FontWeight.bold,
-                                                   color: Color(0xFF059669),
-                                                 ),
-                                               ),
-                                             ),
-                                           ],
-                                         ),
-                                         const SizedBox(height: 3),
-                                       ],
-                                       Row(
-                                         mainAxisSize: MainAxisSize.min,
-                                         children: [
-                                           const Icon(Icons.calendar_month_rounded, size: 12, color: Color(0xFF047857)),
-                                           const SizedBox(width: 4),
-                                           Flexible(
-                                             child: Text(
-                                               item.formattedAppointmentDate,
-                                               maxLines: 1,
-                                               overflow: TextOverflow.ellipsis,
-                                               style: const TextStyle(
-                                                 fontSize: 11,
-                                                 fontWeight: FontWeight.w600,
-                                                 color: Color(0xFF065F46),
-                                               ),
-                                             ),
-                                           ),
-                                         ],
-                                       ),
-                                     ],
-                                   ),
-                                 ),
                               ],
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Appointment Time & Date Container (Full width across card: Time on TOP, Date & Day UNDER IT)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFA7F3D0)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (_cleanDisplayTime(item.dateTime).isNotEmpty) ...[
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.access_time_rounded,
+                                    size: 13,
+                                    color: Color(0xFF059669),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      _cleanDisplayTime(item.dateTime),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF059669),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                            ],
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.calendar_month_rounded,
+                                  size: 13,
+                                  color: Color(0xFF047857),
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    item.formattedAppointmentDate,
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF065F46),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
 
                       const SizedBox(height: 12),
