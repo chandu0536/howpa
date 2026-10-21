@@ -440,55 +440,72 @@ class BookingNotificationManager {
                         ),
                         const SizedBox(height: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                           decoration: BoxDecoration(
                             color: const Color(0xFFEFF6FF),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(color: const Color(0xFFBFDBFE)),
                           ),
-                          child: Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.calendar_month_rounded, size: 14, color: Color(0xFF0052FF)),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  item.formattedAppointmentDate,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF0F172A),
-                                  ),
+                              if (item.time.isNotEmpty &&
+                                  !item.time.toLowerCase().contains('today') &&
+                                  !item.time.toLowerCase().contains('scheduled')) ...[
+                                Row(
+                                  children: [
+                                    const Icon(Icons.access_time_rounded, size: 13, color: Color(0xFF0052FF)),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        item.time,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF0052FF),
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
                                 ),
+                                const SizedBox(height: 4),
+                              ],
+                              Row(
+                                children: [
+                                  const Icon(Icons.calendar_month_rounded, size: 13, color: Color(0xFF64748B)),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      item.formattedAppointmentDate,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF0F172A),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(Icons.near_me_rounded, size: 14, color: Color(0xFF0052FF)),
-                                const SizedBox(width: 4),
-                                Text(
-                                  item.distance,
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0052FF)),
-                                ),
-                              ],
-                            ),
-                            Row(
-                              children: [
-                                const Icon(Icons.access_time_rounded, size: 14, color: Color(0xFF64748B)),
-                                const SizedBox(width: 4),
-                                Text(
-                                  item.time,
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
+                        if (item.distance.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              const Icon(Icons.near_me_rounded, size: 14, color: Color(0xFF0052FF)),
+                              const SizedBox(width: 4),
+                              Text(
+                                item.distance,
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0052FF)),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),

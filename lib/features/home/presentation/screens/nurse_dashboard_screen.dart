@@ -713,34 +713,42 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                 // 5. Sliding Dashboard Poster Carousel (3 Posters sliding automatically every 5s)
                 Column(
                   children: [
-                    SizedBox(
-                      height: 155,
-                      child: PageView.builder(
-                        controller: _posterPageController,
-                        onPageChanged: (index) {
-                          setState(() {
-                            _currentPosterIndex =
-                                index % _dashboardPosters.length;
-                          });
-                        },
-                        itemBuilder: (context, index) {
-                          final posterImage =
-                              _dashboardPosters[index %
-                                  _dashboardPosters.length];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 2.0,
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: Image.asset(
-                                posterImage,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          );
-                        },
+                    // Fixed consistent sizing across all screen sizes (centered with scaleDown)
+                    Center(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: SizedBox(
+                          width: 346,
+                          height: 126,
+                          child: PageView.builder(
+                            controller: _posterPageController,
+                            onPageChanged: (index) {
+                              setState(() {
+                                _currentPosterIndex =
+                                    index % _dashboardPosters.length;
+                              });
+                            },
+                            itemBuilder: (context, index) {
+                              final posterImage =
+                                  _dashboardPosters[index %
+                                      _dashboardPosters.length];
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 2.0,
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Image.asset(
+                                    posterImage,
+                                    width: 346,
+                                    height: 126,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 15),
@@ -1163,40 +1171,59 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                         ),
                       ),
                       const SizedBox(height: 5),
-                      Row(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
-                            Icons.calendar_month_rounded,
-                            size: 13,
-                            color: Color(0xFF0052FF),
-                          ),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              formattedDate.isNotEmpty ? formattedDate : timeRange,
-                              style: const TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF0052FF),
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (formattedDate.isNotEmpty &&
-                              timeRange.isNotEmpty &&
+                          if (timeRange.isNotEmpty &&
                               !timeRange.toLowerCase().contains('today') &&
                               !timeRange.toLowerCase().contains('scheduled')) ...[
-                            const SizedBox(width: 4),
-                            Text(
-                              '• $timeRange',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.access_time_rounded,
+                                  size: 12,
+                                  color: Color(0xFF0052FF),
+                                ),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    timeRange,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF0052FF),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 3),
+                          ],
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.calendar_month_rounded,
+                                size: 12,
                                 color: Color(0xFF64748B),
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  formattedDate.isNotEmpty ? formattedDate : timeRange,
+                                  style: const TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF475569),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ],

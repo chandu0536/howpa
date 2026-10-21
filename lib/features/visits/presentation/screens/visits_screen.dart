@@ -1979,49 +1979,66 @@ class _VisitsScreenState extends State<VisitsScreen> {
 
                       const SizedBox(height: 8),
 
-                      // Appointment Date Container: dddd, dd-mm-year
+                      // Appointment Time & Date Container (Time displayed above Date/Day to prevent overlap)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF8FAFC),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(
-                              Icons.calendar_month_rounded,
-                              size: 14,
-                              color: Color(0xFF0052FF),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                item.formattedAppointmentDate,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF0F172A),
-                                ),
+                            if (item.time.isNotEmpty &&
+                                !item.time.toLowerCase().contains('today') &&
+                                !item.time.toLowerCase().contains('scheduled')) ...[
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.access_time_rounded,
+                                    size: 13,
+                                    color: Color(0xFF0052FF),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      item.time,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF0052FF),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                            if (item.time.isNotEmpty && !item.time.toLowerCase().contains('today') && !item.time.toLowerCase().contains('scheduled')) ...[
-                              const SizedBox(width: 6),
-                              const Icon(
-                                Icons.access_time_rounded,
-                                size: 13,
-                                color: Color(0xFF64748B),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                item.time,
-                                style: const TextStyle(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w600,
+                              const SizedBox(height: 4),
+                            ],
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.calendar_month_rounded,
+                                  size: 13,
                                   color: Color(0xFF64748B),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    item.formattedAppointmentDate,
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF1E293B),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                       ),
@@ -2328,50 +2345,63 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                   ),
                                 ],
                                 const SizedBox(height: 5),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFEFF6FF),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: const Color(0xFFDBEAFE)),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.calendar_month_rounded, size: 12, color: Color(0xFF0052FF)),
-                                      const SizedBox(width: 4),
-                                        Flexible(
-                                          child: Text(
-                                            item.formattedAppointmentDate,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          fontSize: 11.5,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF0052FF),
-                                          ),
-                                        ),
-                                      ),
-                                      if (item.timeInterval.isNotEmpty && !item.timeInterval.toLowerCase().contains('today') && !item.timeInterval.toLowerCase().contains('scheduled')) ...[
-                                        const SizedBox(width: 5),
-                                        const Text('•', style: TextStyle(color: Color(0xFF93C5FD))),
-                                        const SizedBox(width: 5),
-                                          Flexible(
-                                            child: Text(
-                                              item.timeInterval,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 11.5,
-                                            fontWeight: FontWeight.w600,
-                                            color: Color(0xFF1E40AF),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
+                                 Container(
+                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                   decoration: BoxDecoration(
+                                     color: const Color(0xFFEFF6FF),
+                                     borderRadius: BorderRadius.circular(6),
+                                     border: Border.all(color: const Color(0xFFDBEAFE)),
+                                   ),
+                                   child: Column(
+                                     crossAxisAlignment: CrossAxisAlignment.start,
+                                     mainAxisSize: MainAxisSize.min,
+                                     children: [
+                                       if (item.timeInterval.isNotEmpty &&
+                                           !item.timeInterval.toLowerCase().contains('today') &&
+                                           !item.timeInterval.toLowerCase().contains('scheduled')) ...[
+                                         Row(
+                                           mainAxisSize: MainAxisSize.min,
+                                           children: [
+                                             const Icon(Icons.access_time_rounded, size: 12, color: Color(0xFF0052FF)),
+                                             const SizedBox(width: 4),
+                                             Flexible(
+                                               child: Text(
+                                                 item.timeInterval,
+                                                 maxLines: 1,
+                                                 overflow: TextOverflow.ellipsis,
+                                                 style: const TextStyle(
+                                                   fontSize: 11.5,
+                                                   fontWeight: FontWeight.bold,
+                                                   color: Color(0xFF0052FF),
+                                                 ),
+                                               ),
+                                             ),
+                                           ],
+                                         ),
+                                         const SizedBox(height: 3),
+                                       ],
+                                       Row(
+                                         mainAxisSize: MainAxisSize.min,
+                                         children: [
+                                           const Icon(Icons.calendar_month_rounded, size: 12, color: Color(0xFF64748B)),
+                                           const SizedBox(width: 4),
+                                           Flexible(
+                                             child: Text(
+                                               item.formattedAppointmentDate,
+                                               maxLines: 1,
+                                               overflow: TextOverflow.ellipsis,
+                                               style: const TextStyle(
+                                                 fontSize: 11,
+                                                 fontWeight: FontWeight.w600,
+                                                 color: Color(0xFF334155),
+                                               ),
+                                             ),
+                                           ),
+                                         ],
+                                       ),
+                                     ],
+                                   ),
+                                 ),
                               ],
                             ),
                           ),
@@ -2771,50 +2801,63 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                   ),
                                 ],
                                 const SizedBox(height: 4),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFECFDF5),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: const Color(0xFFA7F3D0)),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.calendar_month_rounded, size: 12, color: Color(0xFF059669)),
-                                      const SizedBox(width: 4),
-                                        Flexible(
-                                          child: Text(
-                                            item.formattedAppointmentDate,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          fontSize: 11.5,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF059669),
-                                          ),
-                                        ),
-                                      ),
-                                      if (item.dateTime.isNotEmpty && !item.dateTime.toLowerCase().contains('today') && !item.dateTime.toLowerCase().contains('scheduled')) ...[
-                                        const SizedBox(width: 5),
-                                        const Text('•', style: TextStyle(color: Color(0xFF6EE7B7))),
-                                        const SizedBox(width: 5),
-                                          Flexible(
-                                            child: Text(
-                                              item.dateTime,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                            color: Color(0xFF065F46),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
+                                 Container(
+                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                   decoration: BoxDecoration(
+                                     color: const Color(0xFFECFDF5),
+                                     borderRadius: BorderRadius.circular(6),
+                                     border: Border.all(color: const Color(0xFFA7F3D0)),
+                                   ),
+                                   child: Column(
+                                     crossAxisAlignment: CrossAxisAlignment.start,
+                                     mainAxisSize: MainAxisSize.min,
+                                     children: [
+                                       if (item.dateTime.isNotEmpty &&
+                                           !item.dateTime.toLowerCase().contains('today') &&
+                                           !item.dateTime.toLowerCase().contains('scheduled')) ...[
+                                         Row(
+                                           mainAxisSize: MainAxisSize.min,
+                                           children: [
+                                             const Icon(Icons.access_time_rounded, size: 12, color: Color(0xFF059669)),
+                                             const SizedBox(width: 4),
+                                             Flexible(
+                                               child: Text(
+                                                 item.dateTime,
+                                                 maxLines: 1,
+                                                 overflow: TextOverflow.ellipsis,
+                                                 style: const TextStyle(
+                                                   fontSize: 11.5,
+                                                   fontWeight: FontWeight.bold,
+                                                   color: Color(0xFF059669),
+                                                 ),
+                                               ),
+                                             ),
+                                           ],
+                                         ),
+                                         const SizedBox(height: 3),
+                                       ],
+                                       Row(
+                                         mainAxisSize: MainAxisSize.min,
+                                         children: [
+                                           const Icon(Icons.calendar_month_rounded, size: 12, color: Color(0xFF047857)),
+                                           const SizedBox(width: 4),
+                                           Flexible(
+                                             child: Text(
+                                               item.formattedAppointmentDate,
+                                               maxLines: 1,
+                                               overflow: TextOverflow.ellipsis,
+                                               style: const TextStyle(
+                                                 fontSize: 11,
+                                                 fontWeight: FontWeight.w600,
+                                                 color: Color(0xFF065F46),
+                                               ),
+                                             ),
+                                           ),
+                                         ],
+                                       ),
+                                     ],
+                                   ),
+                                 ),
                               ],
                             ),
                           ),
