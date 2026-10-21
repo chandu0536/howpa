@@ -801,18 +801,39 @@ class VisitRequestItem {
       lat = double.tryParse(coords[1].toString()) ?? lat;
     }
 
-    // Parse Distance (eliminate fake 1.5 km fallback)
-    final distVal = json['distanceKm'] ?? json['distance_km'] ?? json['distance'] ?? json['dist'] ?? json['distanceText'] ?? json['duration'];
+    // Parse Distance (eliminate fake fallback and preserve backend distance)
+    final distVal = json['distanceKm'] ??
+        json['distance_km'] ??
+        json['distance'] ??
+        json['dist'] ??
+        json['distanceText'] ??
+        json['duration'];
     String distStr = '';
-    if (distVal != null && distVal.toString().trim().isNotEmpty && distVal.toString().trim() != 'null') {
+    if (distVal != null &&
+        distVal.toString().trim().isNotEmpty &&
+        distVal.toString().trim() != 'null') {
       final s = distVal.toString().trim();
-      final numVal = double.tryParse(s.replaceAll(RegExp(r'[^\d.]'), ''));
-      if (s.toLowerCase().contains('km')) {
+      final lower = s.toLowerCase();
+      if (lower.contains('km') ||
+          lower.contains('kilometer') ||
+          lower.contains('kilometre') ||
+          lower.contains('metre') ||
+          lower.contains('meter') ||
+          lower.contains('mile')) {
         distStr = s;
-      } else if (numVal != null) {
-        distStr = '${numVal.toStringAsFixed(1)} km';
       } else {
-        distStr = '$s km';
+        final numVal = double.tryParse(s.replaceAll(RegExp(r'[^\d.]'), ''));
+        if (numVal != null) {
+          if (numVal == 0) {
+            distStr = '0 km';
+          } else if (numVal == numVal.roundToDouble()) {
+            distStr = '${numVal.toInt()} km';
+          } else {
+            distStr = '${numVal.toStringAsFixed(1)} km';
+          }
+        } else {
+          distStr = '$s km';
+        }
       }
     }
     // If backend sent dummy "1.5 km" while coordinates are null, or distance is completely empty
@@ -1076,8 +1097,8 @@ class VisitRequestItem {
       notes: notes,
       conditionImages: conditionImages,
       phoneNumber: phone,
-      latitude: lat ?? 12.9716,
-      longitude: lng ?? 77.5946,
+      latitude: lat,
+      longitude: lng,
       isVitalsUpdated: vitalsUpdated,
       doctorName: doctorName,
       femaleNursePreferred: femaleNursePreferred,

@@ -242,10 +242,17 @@ class VisitsRepositoryImpl implements VisitsRepository {
           final pos = await LocationService.instance.getCurrentPosition();
           if (pos != null) {
             filtered = filtered.map((item) {
+              final hasBackendDist = item.distance.isNotEmpty &&
+                  item.distance != '--' &&
+                  item.distance != 'Nearby' &&
+                  item.distance != '1.5 km';
+              if (hasBackendDist) {
+                return item;
+              }
               if (item.latitude != null && item.longitude != null && item.latitude != 0 && item.longitude != 0) {
                 final meters = Geolocator.distanceBetween(pos.latitude, pos.longitude, item.latitude!, item.longitude!);
                 final km = meters / 1000.0;
-                return item.copyWith(distance: '${km.toStringAsFixed(1)} km');
+                return item.copyWith(distance: km < 0.1 ? '0 km' : '${km.toStringAsFixed(1)} km');
               }
               return item;
             }).toList();
@@ -366,12 +373,19 @@ class VisitsRepositoryImpl implements VisitsRepository {
             final itemLat = f.latitude ?? existing?.latitude ?? nearbyMatch?.latitude;
             final itemLng = f.longitude ?? existing?.longitude ?? nearbyMatch?.longitude;
             String realDist = f.distance;
-            if (nursePos != null && itemLat != null && itemLng != null && itemLat != 0 && itemLng != 0) {
-              final meters = Geolocator.distanceBetween(nursePos.latitude, nursePos.longitude, itemLat, itemLng);
-              final km = meters / 1000.0;
-              realDist = '${km.toStringAsFixed(1)} km';
-            } else if (realDist.isEmpty || (realDist == '1.5 km' && (itemLat == null || itemLng == null))) {
-              realDist = (itemLat != null && itemLng != null) ? 'Nearby' : '--';
+            final hasBackendDist = realDist.isNotEmpty &&
+                realDist != '--' &&
+                realDist != 'Nearby' &&
+                realDist != '1.5 km';
+
+            if (!hasBackendDist) {
+              if (nursePos != null && itemLat != null && itemLng != null && itemLat != 0 && itemLng != 0) {
+                final meters = Geolocator.distanceBetween(nursePos.latitude, nursePos.longitude, itemLat, itemLng);
+                final km = meters / 1000.0;
+                realDist = km < 0.1 ? '0 km' : '${km.toStringAsFixed(1)} km';
+              } else {
+                realDist = (itemLat != null && itemLng != null) ? 'Nearby' : '--';
+              }
             }
 
             enriched.add(VisitRequestItem(
@@ -564,7 +578,12 @@ class VisitsRepositoryImpl implements VisitsRepository {
           id: serverAccepted.id.isNotEmpty ? serverAccepted.id : appointmentId,
           patientName: mergedName,
           address: mergedAddr,
-          distance: serverAccepted.distance,
+          distance: (serverAccepted.distance.isNotEmpty &&
+                  serverAccepted.distance != '--' &&
+                  serverAccepted.distance != 'Nearby' &&
+                  serverAccepted.distance != '1.5 km')
+              ? serverAccepted.distance
+              : acceptedItem.distance,
           serviceTag: serverAccepted.serviceTag,
           time: serverAccepted.time,
           avatarUrl: serverAccepted.avatarUrl.isNotEmpty ? serverAccepted.avatarUrl : acceptedItem.avatarUrl,

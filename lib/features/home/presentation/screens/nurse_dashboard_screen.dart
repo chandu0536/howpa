@@ -32,13 +32,21 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
   static String _cleanDisplayTime(String rawTime) {
     if (rawTime.trim().isEmpty) return '';
     var s = rawTime.trim();
-    final timeMatch = RegExp(r'(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)(?:\s*-\s*\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm))?)').firstMatch(s);
+    final timeMatch = RegExp(
+      r'(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)(?:\s*-\s*\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm))?)',
+    ).firstMatch(s);
     if (timeMatch != null) {
       return timeMatch.group(1)!.trim();
     }
     s = s
-        .replaceAll(RegExp(r'^(Today|Scheduled)\s*[•,\-]?\s*', caseSensitive: false), '')
-        .replaceAll(RegExp(r'\s*[•,\-]?\s*(Today|Scheduled)$', caseSensitive: false), '')
+        .replaceAll(
+          RegExp(r'^(Today|Scheduled)\s*[•,\-]?\s*', caseSensitive: false),
+          '',
+        )
+        .replaceAll(
+          RegExp(r'\s*[•,\-]?\s*(Today|Scheduled)$', caseSensitive: false),
+          '',
+        )
         .trim();
     if (s.toLowerCase() == 'today' || s.toLowerCase() == 'scheduled') return '';
     return s;
@@ -104,16 +112,24 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
         _isOnline = stats.isOnline;
         _todayVisits = visits.where((v) {
           final st = v.status.toUpperCase();
-          if (st == 'COMPLETED' || st == 'DONE' || st == 'CANCELLED' || st == 'REJECTED') {
+          if (st == 'COMPLETED' ||
+              st == 'DONE' ||
+              st == 'CANCELLED' ||
+              st == 'REJECTED') {
             return false;
           }
           if (VisitsRepositoryImpl.isVisitCompleted(v.id) ||
-              (v.appointmentId != null && VisitsRepositoryImpl.isVisitCompleted(v.appointmentId!)) ||
-              (v.requestId != null && VisitsRepositoryImpl.isVisitCompleted(v.requestId!)) ||
-              (v.orderId != null && VisitsRepositoryImpl.isVisitCompleted(v.orderId!))) {
+              (v.appointmentId != null &&
+                  VisitsRepositoryImpl.isVisitCompleted(v.appointmentId!)) ||
+              (v.requestId != null &&
+                  VisitsRepositoryImpl.isVisitCompleted(v.requestId!)) ||
+              (v.orderId != null &&
+                  VisitsRepositoryImpl.isVisitCompleted(v.orderId!))) {
             return false;
           }
-          if (completed.any((c) => VisitsRepositoryImpl.isSameVisitItem(c, v))) {
+          if (completed.any(
+            (c) => VisitsRepositoryImpl.isSameVisitItem(c, v),
+          )) {
             return false;
           }
           return true;
@@ -367,7 +383,9 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                                     .buildAvatarWidget(
                                       size: 40,
                                       fallbackBgColor: const Color(0xFFF1F5F9),
-                                      fallbackIconColor: const Color(0xFF64748B),
+                                      fallbackIconColor: const Color(
+                                        0xFF64748B,
+                                      ),
                                       iconSize: 22,
                                     );
                               },
@@ -733,7 +751,7 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: SizedBox(
-                          width: 346,
+                          width: 386,
                           height: 126,
                           child: PageView.builder(
                             controller: _posterPageController,
@@ -1080,7 +1098,10 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: const Color(0xFFF1F5F9),
-                    border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+                    border: Border.all(
+                      color: const Color(0xFFE2E8F0),
+                      width: 1,
+                    ),
                   ),
                   child: ClipOval(
                     child: _buildAvatarWidget(avatarUrl, patientName, 48),
@@ -1148,9 +1169,7 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                           decoration: BoxDecoration(
                             color: const Color(0xFFF1F5F9),
                             borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: const Color(0xFFE2E8F0),
-                            ),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -1225,7 +1244,9 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                               const SizedBox(width: 4),
                               Flexible(
                                 child: Text(
-                                  formattedDate.isNotEmpty ? formattedDate : timeRange,
+                                  formattedDate.isNotEmpty
+                                      ? formattedDate
+                                      : timeRange,
                                   style: const TextStyle(
                                     fontSize: 11.5,
                                     fontWeight: FontWeight.w600,
@@ -1329,7 +1350,9 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
       if (clean.startsWith('data:image/')) {
         try {
           final commaIdx = clean.indexOf(',');
-          final base64Str = commaIdx != -1 ? clean.substring(commaIdx + 1) : clean;
+          final base64Str = commaIdx != -1
+              ? clean.substring(commaIdx + 1)
+              : clean;
           final bytes = base64Decode(base64Str.replaceAll(RegExp(r'\s+'), ''));
           return Image.memory(
             bytes,
