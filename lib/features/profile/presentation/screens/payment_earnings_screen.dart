@@ -262,6 +262,7 @@ class _PaymentEarningsScreenState extends State<PaymentEarningsScreen> {
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 16),
               // Gradient Wallet Card
@@ -295,12 +296,15 @@ class _PaymentEarningsScreenState extends State<PaymentEarningsScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      '₹${_walletSummary.totalBalance.toStringAsFixed(0)}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        '₹${_walletSummary.totalBalance.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 48,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -317,12 +321,15 @@ class _PaymentEarningsScreenState extends State<PaymentEarningsScreen> {
                                 ),
                               ),
                               const SizedBox(height: 4),
-                              Text(
-                                '₹${_walletSummary.thisWeekEarnings.toStringAsFixed(0)}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  '₹${_walletSummary.thisWeekEarnings.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                             ],
@@ -340,12 +347,15 @@ class _PaymentEarningsScreenState extends State<PaymentEarningsScreen> {
                                 ),
                               ),
                               const SizedBox(height: 4),
-                              Text(
-                                '₹${_walletSummary.totalWithdrawn.toStringAsFixed(0)}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  '₹${_walletSummary.totalWithdrawn.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                             ],
@@ -395,15 +405,22 @@ class _PaymentEarningsScreenState extends State<PaymentEarningsScreen> {
                       amount: '₹${_walletSummary.thisWeekEarnings.toStringAsFixed(0)}',
                       subtitleWidget: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.trending_up_rounded, color: Color(0xFF10B981), size: 14),
+                          Icon(Icons.trending_up_rounded, color: Color(0xFF10B981), size: 13),
                           SizedBox(width: 2),
-                          Text('Active', style: TextStyle(color: Color(0xFF10B981), fontSize: 11, fontWeight: FontWeight.bold)),
+                          Flexible(
+                            child: Text(
+                              'Active',
+                              style: TextStyle(color: Color(0xFF10B981), fontSize: 10.5, fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                         ],
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: _buildStatCard(
                       icon: Icons.account_balance_wallet_rounded,
@@ -412,26 +429,30 @@ class _PaymentEarningsScreenState extends State<PaymentEarningsScreen> {
                       amount: '₹${(_walletSummary.totalBalance + _walletSummary.totalWithdrawn).toStringAsFixed(0)}',
                       subtitleWidget: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.check_circle_outline_rounded,
                             color: Color(0xFF10B981),
-                            size: 14,
+                            size: 13,
                           ),
                           SizedBox(width: 2),
-                          Text(
-                            'Lifetime',
-                            style: TextStyle(
-                              color: Color(0xFF10B981),
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
+                          Flexible(
+                            child: Text(
+                              'Lifetime',
+                              style: TextStyle(
+                                color: Color(0xFF10B981),
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: _buildStatCard(
                       icon: Icons.assignment_outlined,
@@ -440,9 +461,11 @@ class _PaymentEarningsScreenState extends State<PaymentEarningsScreen> {
                       amount: '₹${_walletSummary.pendingWithdrawals.toStringAsFixed(0)}',
                       subtitleWidget: Text(
                         _walletSummary.pendingWithdrawals > 0 ? 'Settling...' : 'None',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: Color(0xFF64748B),
-                          fontSize: 11,
+                          fontSize: 10.5,
                         ),
                       ),
                     ),
@@ -462,26 +485,26 @@ class _PaymentEarningsScreenState extends State<PaymentEarningsScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Recent Earnings',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF0F172A),
+                children: const [
+                  Flexible(
+                    child: Text(
+                      'Recent Earnings',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F172A),
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  Row(
-                    children: const [
-                      Text(
-                        'Live Ledger',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0052FF),
-                        ),
-                      ),
-                    ],
+                  SizedBox(width: 8),
+                  Text(
+                    'Live Ledger',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0052FF),
+                    ),
                   ),
                 ],
               ),
@@ -543,9 +566,13 @@ class _PaymentEarningsScreenState extends State<PaymentEarningsScreen> {
                           ],
                         ),
                       ),
-                      Text(
-                        '₹${_walletSummary.totalBalance.toStringAsFixed(0)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF10B981)),
+                      const SizedBox(width: 8),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          '₹${_walletSummary.totalBalance.toStringAsFixed(0)}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF10B981)),
+                        ),
                       ),
                     ],
                   ),
@@ -568,7 +595,7 @@ class _PaymentEarningsScreenState extends State<PaymentEarningsScreen> {
     Widget? subtitleWidget,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -582,28 +609,34 @@ class _PaymentEarningsScreenState extends State<PaymentEarningsScreen> {
         ],
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: iconColor, size: 24),
-          const SizedBox(height: 12),
+          Icon(icon, color: iconColor, size: 22),
+          const SizedBox(height: 8),
           Text(
             title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              fontSize: 12,
+              fontSize: 11.5,
               fontWeight: FontWeight.w600,
               color: Color(0xFF64748B),
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            amount,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF0F172A),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              amount,
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF0F172A),
+              ),
             ),
           ),
           if (subtitleWidget != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             subtitleWidget,
           ],
         ],
@@ -631,12 +664,15 @@ class _PaymentEarningsScreenState extends State<PaymentEarningsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Payout Account',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0F172A),
+              const Flexible(
+                child: Text(
+                  'Payout Account',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               if (isLinked)
@@ -752,11 +788,14 @@ class _PaymentEarningsScreenState extends State<PaymentEarningsScreen> {
                           children: [
                             Row(
                               children: [
-                                Text(
-                                  _savedBank['bankName']?.isNotEmpty == true
-                                      ? _savedBank['bankName']!
-                                      : (hasBank ? 'Bank Account' : 'UPI Account'),
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0F172A)),
+                                Flexible(
+                                  child: Text(
+                                    _savedBank['bankName']?.isNotEmpty == true
+                                        ? _savedBank['bankName']!
+                                        : (hasBank ? 'Bank Account' : 'UPI Account'),
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0F172A)),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
                                 const SizedBox(width: 8),
                                 Container(
@@ -803,10 +842,14 @@ class _PaymentEarningsScreenState extends State<PaymentEarningsScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'Holder: ${_savedBank['accountHolderName'] ?? ""}',
-                            style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                          Flexible(
+                            child: Text(
+                              'Holder: ${_savedBank['accountHolderName'] ?? ""}',
+                              style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
+                          const SizedBox(width: 8),
                           Text(
                             'IFSC: ${_savedBank['ifscCode'] ?? ""}',
                             style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B), fontWeight: FontWeight.bold),

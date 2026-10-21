@@ -31,7 +31,8 @@ class UserProfileManager extends ChangeNotifier {
   String? get profilePhotoUrl => _profilePhotoUrl;
 
   String? get fullProfilePhotoUrl {
-    if (_profilePhotoUrl == null || _profilePhotoUrl!.trim().isEmpty) return null;
+    if (_profilePhotoUrl == null || _profilePhotoUrl!.trim().isEmpty)
+      return null;
     final url = _profilePhotoUrl!.trim();
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return url;
@@ -149,10 +150,20 @@ class UserProfileManager extends ChangeNotifier {
     double? longitude,
     String? profilePhotoUrl,
   }) {
-    if (nurseId != null && nurseId.trim().isNotEmpty && nurseId.trim() != 'null') _nurseId = nurseId.trim();
-    if (fullName != null && fullName.trim().isNotEmpty && fullName.trim() != 'null') _fullName = fullName.trim();
-    if (phoneNumber != null && phoneNumber.trim().isNotEmpty && phoneNumber.trim() != 'null') _phoneNumber = phoneNumber.trim();
-    if (email != null && email.trim().isNotEmpty && email.trim() != 'null') _email = email.trim();
+    if (nurseId != null &&
+        nurseId.trim().isNotEmpty &&
+        nurseId.trim() != 'null')
+      _nurseId = nurseId.trim();
+    if (fullName != null &&
+        fullName.trim().isNotEmpty &&
+        fullName.trim() != 'null')
+      _fullName = fullName.trim();
+    if (phoneNumber != null &&
+        phoneNumber.trim().isNotEmpty &&
+        phoneNumber.trim() != 'null')
+      _phoneNumber = phoneNumber.trim();
+    if (email != null && email.trim().isNotEmpty && email.trim() != 'null')
+      _email = email.trim();
     if (dob != null && dob.trim().isNotEmpty && dob.trim() != 'null') {
       final cleaned = formatCleanDob(dob);
       if (cleaned.isNotEmpty) _dob = cleaned;
@@ -160,16 +171,36 @@ class UserProfileManager extends ChangeNotifier {
     if (gender != null && gender.trim().isNotEmpty && gender.trim() != 'null') {
       _gender = normalizeGender(gender) ?? gender.trim();
     }
-    if (experience != null && experience.trim().isNotEmpty && experience.trim() != 'null') _experience = experience.trim();
-    if (specialization != null && specialization.trim().isNotEmpty && specialization.trim() != 'null') _specialization = specialization.trim();
-    if (country != null && country.trim().isNotEmpty && country.trim() != 'null') _country = country.trim();
-    if (state != null && state.trim().isNotEmpty && state.trim() != 'null') _state = state.trim();
-    if (district != null && district.trim().isNotEmpty && district.trim() != 'null') _district = district.trim();
-    if (area != null && area.trim().isNotEmpty && area.trim() != 'null') _area = area.trim();
-    if (location != null && location.trim().isNotEmpty && location.trim() != 'null') _location = location.trim();
+    if (experience != null &&
+        experience.trim().isNotEmpty &&
+        experience.trim() != 'null')
+      _experience = experience.trim();
+    if (specialization != null &&
+        specialization.trim().isNotEmpty &&
+        specialization.trim() != 'null')
+      _specialization = specialization.trim();
+    if (country != null &&
+        country.trim().isNotEmpty &&
+        country.trim() != 'null')
+      _country = country.trim();
+    if (state != null && state.trim().isNotEmpty && state.trim() != 'null')
+      _state = state.trim();
+    if (district != null &&
+        district.trim().isNotEmpty &&
+        district.trim() != 'null')
+      _district = district.trim();
+    if (area != null && area.trim().isNotEmpty && area.trim() != 'null')
+      _area = area.trim();
+    if (location != null &&
+        location.trim().isNotEmpty &&
+        location.trim() != 'null')
+      _location = location.trim();
     if (latitude != null) _latitude = latitude;
     if (longitude != null) _longitude = longitude;
-    if (profilePhotoUrl != null && profilePhotoUrl.trim().isNotEmpty && profilePhotoUrl.trim() != 'null') _profilePhotoUrl = profilePhotoUrl.trim();
+    if (profilePhotoUrl != null &&
+        profilePhotoUrl.trim().isNotEmpty &&
+        profilePhotoUrl.trim() != 'null')
+      _profilePhotoUrl = profilePhotoUrl.trim();
     notifyListeners();
   }
 
@@ -221,29 +252,37 @@ class UserProfileManager extends ChangeNotifier {
           width: size,
           height: size,
           errorBuilder: (context, error, stackTrace) {
-            return _buildFallbackIcon(size, fallbackBgColor, fallbackIconColor, iconSize);
+            return _buildFallbackIcon(
+              size,
+              fallbackBgColor,
+              fallbackIconColor,
+              iconSize,
+            );
           },
         ),
       );
     }
 
-    return _buildFallbackIcon(size, fallbackBgColor, fallbackIconColor, iconSize);
+    return _buildFallbackIcon(
+      size,
+      fallbackBgColor,
+      fallbackIconColor,
+      iconSize,
+    );
   }
 
-  Widget _buildFallbackIcon(double size, Color bgColor, Color iconColor, double iconSize) {
+  Widget _buildFallbackIcon(
+    double size,
+    Color bgColor,
+    Color iconColor,
+    double iconSize,
+  ) {
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: bgColor,
-      ),
+      decoration: BoxDecoration(shape: BoxShape.circle, color: bgColor),
       child: Center(
-        child: Icon(
-          Icons.person_rounded,
-          color: iconColor,
-          size: iconSize,
-        ),
+        child: Icon(Icons.person_rounded, color: iconColor, size: iconSize),
       ),
     );
   }
