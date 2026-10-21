@@ -1,6 +1,8 @@
 class AppConstants {
   static const String appName = 'Howpa Nurse';
   static const String appVersion = '1.0.0';
+  static const String appBuildNumber = '1';
+  static const String appFullVersion = '1.0.0+1';
 
   // Google Maps API Key
   static const String googleMapsApiKey = 'AIzaSyBBfALT0fQbrlVav4d-Fyj7KuVswEnrfck';

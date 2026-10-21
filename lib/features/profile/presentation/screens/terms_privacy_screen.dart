@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:howpa_nurse/core/utils/constants.dart';
 import '../../data/models/profile_models.dart';
 import '../../data/repositories/profile_repository.dart';
 
@@ -140,6 +141,8 @@ class _TermsPrivacyScreenState extends State<TermsPrivacyScreen> with SingleTick
             const SizedBox(height: 16),
           ],
           ..._legalData.termsSections.map((sec) => _buildSectionCard(sec.title, sec.content)),
+          const SizedBox(height: 12),
+          _buildAppVersionFooter(),
           const SizedBox(height: 24),
         ],
       ),
@@ -173,6 +176,8 @@ class _TermsPrivacyScreenState extends State<TermsPrivacyScreen> with SingleTick
             const SizedBox(height: 16),
           ],
           ..._legalData.privacySections.map((sec) => _buildSectionCard(sec.title, sec.content)),
+          const SizedBox(height: 12),
+          _buildAppVersionFooter(),
           const SizedBox(height: 24),
         ],
       ),
@@ -208,9 +213,9 @@ class _TermsPrivacyScreenState extends State<TermsPrivacyScreen> with SingleTick
                   color: const Color(0xFFFFF4ED),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: Text(
-                  'v${_legalData.version}',
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFFF5C00)),
+                child: const Text(
+                  'App v${AppConstants.appVersion}',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFFF5C00)),
                 ),
               ),
             ],
@@ -222,12 +227,31 @@ class _TermsPrivacyScreenState extends State<TermsPrivacyScreen> with SingleTick
           ),
           const SizedBox(height: 10),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Icon(Icons.schedule_rounded, size: 14, color: Color(0xFF94A3B8)),
-              const SizedBox(width: 4),
-              Text(
-                'Last Updated: ${_legalData.lastUpdated}',
-                style: const TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+              Row(
+                children: [
+                  const Icon(Icons.schedule_rounded, size: 14, color: Color(0xFF94A3B8)),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Last Updated: ${_legalData.lastUpdated}',
+                    style: const TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                  ),
+                ],
+              ),
+              Row(
+                children: const [
+                  Icon(Icons.smartphone_rounded, size: 14, color: Color(0xFF0052FF)),
+                  SizedBox(width: 4),
+                  Text(
+                    'Version: ',
+                    style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                  ),
+                  Text(
+                    'v${AppConstants.appVersion}',
+                    style: TextStyle(fontSize: 11.5, color: Color(0xFF0052FF), fontWeight: FontWeight.bold),
+                  ),
+                ],
               ),
             ],
           ),
@@ -263,6 +287,61 @@ class _TermsPrivacyScreenState extends State<TermsPrivacyScreen> with SingleTick
               fontSize: 13,
               height: 1.5,
               color: Color(0xFF475569),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  Widget _buildAppVersionFooter() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF4ED),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.verified_user_outlined, size: 18, color: Color(0xFFFF5C00)),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'Howpa Nurse App',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Official Partner Edition',
+                    style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF4ED),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFFFEDD5)),
+            ),
+            child: const Text(
+              'Version ${AppConstants.appVersion}',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFFF5C00)),
             ),
           ),
         ],

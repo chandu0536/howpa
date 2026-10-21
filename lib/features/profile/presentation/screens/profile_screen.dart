@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:howpa_nurse/core/utils/constants.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:howpa_nurse/core/network/token_storage.dart';
@@ -514,7 +515,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               
-              const SizedBox(height: 40),
+              const SizedBox(height: 24),
+
+              const Center(
+                child: Text(
+                  'Howpa Nurse • Version ${AppConstants.appVersion}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF94A3B8),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 30),
             ],
           ),
         ),
