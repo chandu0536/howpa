@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:howpa_nurse/features/vitals/data/models/vitals_details_model.dart';
+import 'package:howpa_nurse/features/visits/data/models/visit_models.dart';
 
 class ViewVitalsBottomSheet extends StatelessWidget {
   final PatientVitalsSummary summary;
@@ -21,33 +22,35 @@ class ViewVitalsBottomSheet extends StatelessWidget {
   }
 
   Widget _buildSafeImage(String path, {BoxFit fit = BoxFit.cover, double? width, double? height}) {
-    if (path.isEmpty) {
+    final clean = path.trim();
+    if (clean.isEmpty || clean == 'null' || clean == 'undefined') {
       return Container(
         color: const Color(0xFFF1F5F9),
         alignment: Alignment.center,
-        child: const Icon(Icons.broken_image_rounded, color: Color(0xFF94A3B8)),
+        child: const Icon(Icons.person_rounded, color: Color(0xFF94A3B8)),
       );
     }
-    if (path.startsWith('http://') || path.startsWith('https://')) {
+    final fullUrl = formatImageUrl(clean);
+    if (fullUrl.startsWith('http://') || fullUrl.startsWith('https://')) {
       return Image.network(
-        path,
+        fullUrl,
         fit: fit,
         width: width,
         height: height,
         errorBuilder: (context, error, stackTrace) => Container(
           color: const Color(0xFFF1F5F9),
           alignment: Alignment.center,
-          child: const Icon(Icons.broken_image_rounded, color: Color(0xFF94A3B8)),
+          child: const Icon(Icons.person_rounded, color: Color(0xFF94A3B8)),
         ),
       );
     }
     try {
-      final file = File(path);
+      final file = File(clean.replaceFirst('file://', ''));
       if (!file.existsSync()) {
         return Container(
           color: const Color(0xFFF1F5F9),
           alignment: Alignment.center,
-          child: const Icon(Icons.broken_image_rounded, color: Color(0xFF94A3B8)),
+          child: const Icon(Icons.person_rounded, color: Color(0xFF94A3B8)),
         );
       }
       return Image.file(
@@ -59,14 +62,14 @@ class ViewVitalsBottomSheet extends StatelessWidget {
         errorBuilder: (context, error, stackTrace) => Container(
           color: const Color(0xFFF1F5F9),
           alignment: Alignment.center,
-          child: const Icon(Icons.broken_image_rounded, color: Color(0xFF94A3B8)),
+          child: const Icon(Icons.person_rounded, color: Color(0xFF94A3B8)),
         ),
       );
     } catch (_) {
       return Container(
         color: const Color(0xFFF1F5F9),
         alignment: Alignment.center,
-        child: const Icon(Icons.broken_image_rounded, color: Color(0xFF94A3B8)),
+        child: const Icon(Icons.person_rounded, color: Color(0xFF94A3B8)),
       );
     }
   }
@@ -234,10 +237,77 @@ class ViewVitalsBottomSheet extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  summary.patientName,
-                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        summary.patientName,
+                                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (summary.isFamilyMember) ...[
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFEFF6FF),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: const Color(0xFFBFDBFE)),
+                                        ),
+                                        child: Text(
+                                          summary.relation.isNotEmpty && summary.relation != 'Family Member'
+                                              ? summary.relation
+                                              : 'Family Member',
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF2563EB),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
+                                if (summary.patientGender.isNotEmpty || summary.patientAge.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    [
+                                      if (summary.patientGender.isNotEmpty)
+                                        summary.patientGender.substring(0, 1).toUpperCase() + summary.patientGender.substring(1).toLowerCase(),
+                                      if (summary.patientAge.isNotEmpty)
+                                        '${summary.patientAge} yrs',
+                                    ].join(' • '),
+                                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                                  ),
+                                ],
+                                if (summary.displayOrderId.isNotEmpty) ...[
+                                  const SizedBox(height: 3),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.tag_rounded, size: 10.5, color: Color(0xFF64748B)),
+                                        const SizedBox(width: 3),
+                                        Text(
+                                          'Order ID: ${summary.displayOrderId}',
+                                          style: const TextStyle(
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF334155),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                                 if (summary.patientAddress.isNotEmpty) ...[
                                   const SizedBox(height: 2),
                                   Text(

@@ -42,6 +42,8 @@ class DeviceTokenRegistrationRequest {
 
   Map<String, dynamic> toJson() => {
         'token': token,
+        'deviceToken': token,
+        'fcmToken': token,
         'platform': platform,
         if (deviceId != null) 'deviceId': deviceId,
         if (appVersion != null) 'appVersion': appVersion,

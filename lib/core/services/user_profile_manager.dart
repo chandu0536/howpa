@@ -173,6 +173,28 @@ class UserProfileManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Completely reset in-memory profile state on logout or account switch
+  void reset() {
+    _nurseId = '';
+    _profileImageFile = null;
+    _profilePhotoUrl = null;
+    _fullName = 'Nurse';
+    _phoneNumber = '';
+    _email = '';
+    _dob = '';
+    _gender = '';
+    _experience = '0';
+    _specialization = 'Nurse Care';
+    _country = 'India';
+    _state = 'Telangana';
+    _district = 'Hyderabad';
+    _area = '';
+    _location = '';
+    _latitude = null;
+    _longitude = null;
+    notifyListeners();
+  }
+
   Widget buildAvatarWidget({
     double size = 40,
     Color fallbackBgColor = const Color(0xFF0052FF),

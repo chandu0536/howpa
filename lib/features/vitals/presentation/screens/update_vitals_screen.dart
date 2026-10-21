@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -21,12 +22,14 @@ class ReportFileItem {
 
 class UpdateVitalsScreen extends StatefulWidget {
   final String appointmentId;
+  final String? orderId;
   final String patientName;
   final String avatarUrl;
 
   const UpdateVitalsScreen({
     super.key,
     this.appointmentId = '',
+    this.orderId,
     required this.patientName,
     required this.avatarUrl,
   });
@@ -1081,11 +1084,7 @@ class _UpdateVitalsScreenState extends State<UpdateVitalsScreen> {
                             border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
                           ),
                           child: ClipOval(
-                            child: Image.network(
-                              widget.avatarUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => const Icon(Icons.person_rounded, color: Color(0xFF64748B)),
-                            ),
+                            child: _buildAvatar(widget.avatarUrl, widget.patientName, 52),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -1104,6 +1103,32 @@ class _UpdateVitalsScreenState extends State<UpdateVitalsScreen> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
+                              if (widget.orderId != null && widget.orderId!.isNotEmpty) ...[
+                                const SizedBox(height: 3),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.tag_rounded, size: 11, color: Color(0xFF64748B)),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        'Order ID: ${widget.orderId}',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF334155),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                               const SizedBox(height: 3),
                               const Text(
                                 'Age: 68 Years  •  Female',
@@ -1559,47 +1584,55 @@ class _UpdateVitalsScreenState extends State<UpdateVitalsScreen> {
                                 : 'Clinical Vitals Record';
 
                             final cleanBp = _bpController.text.trim().replaceAll('mmHg', '').trim();
-                            final hrVal = int.tryParse(_hrController.text.trim()) ?? 74;
-                            final tempVal = double.tryParse(_tempController.text.trim()) ?? 98.4;
-                            final sugarVal = int.tryParse(_sugarController.text.trim()) ?? 110;
-                            final spo2Val = int.tryParse(_spo2Controller.text.trim()) ?? 99;
-                            final weightVal = double.tryParse(_weightController.text.trim()) ?? 68.0;
+                            final hrText = _hrController.text.trim();
+                            final tempText = _tempController.text.trim();
+                            final sugarText = _sugarController.text.trim();
+                            final spo2Text = _spo2Controller.text.trim();
+                            final weightText = _weightController.text.trim();
                             final notesText = _notesController.text.trim().isNotEmpty
                                 ? _notesController.text.trim()
                                 : 'Patient is stable.';
 
                             // ── Build immediate local PatientVitalsSummary ──
-                            final List<VitalItemEntry> vitalsList = [
-                              VitalItemEntry(
+                            final List<VitalItemEntry> vitalsList = [];
+
+                            if (cleanBp.isNotEmpty) {
+                              vitalsList.add(VitalItemEntry(
                                 name: 'Blood Pressure',
-                                value: cleanBp.isNotEmpty ? cleanBp : '120/80',
+                                value: cleanBp,
                                 unit: 'mmHg',
                                 details: 'Standard Clinical Reading',
                                 status: 'Normal',
                                 fileUrl: vitalImagesMap['Blood Pressure'] ?? '',
-                              ),
-                              VitalItemEntry(
+                              ));
+                            }
+
+                            if (hrText.isNotEmpty) {
+                              vitalsList.add(VitalItemEntry(
                                 name: 'Heart Rate',
-                                value: hrVal.toString(),
+                                value: hrText,
                                 unit: 'bpm',
                                 details: 'Radial Pulse',
                                 status: 'Normal',
                                 fileUrl: vitalImagesMap['Heart Rate'] ?? '',
-                              ),
-                              VitalItemEntry(
+                              ));
+                            }
+
+                            if (tempText.isNotEmpty) {
+                              vitalsList.add(VitalItemEntry(
                                 name: 'Temperature',
-                                value: tempVal.toString(),
+                                value: tempText,
                                 unit: '°F',
                                 details: 'Oral / Forehead Thermometer',
                                 status: 'Normal',
                                 fileUrl: vitalImagesMap['Temperature'] ?? '',
-                              ),
-                            ];
+                              ));
+                            }
 
-                            if (sugarVal > 0) {
+                            if (sugarText.isNotEmpty) {
                               vitalsList.add(VitalItemEntry(
                                 name: 'Blood Glucose (Sugar)',
-                                value: sugarVal.toString(),
+                                value: sugarText,
                                 unit: 'mg/dL',
                                 details: 'Glucometer Reading',
                                 status: 'Normal',
@@ -1607,10 +1640,10 @@ class _UpdateVitalsScreenState extends State<UpdateVitalsScreen> {
                               ));
                             }
 
-                            if (spo2Val > 0) {
+                            if (spo2Text.isNotEmpty) {
                               vitalsList.add(VitalItemEntry(
                                 name: 'Pulse Oximeter (SpO2)',
-                                value: spo2Val.toString(),
+                                value: spo2Text,
                                 unit: '%',
                                 details: 'Oxygen Saturation',
                                 status: 'Normal',
@@ -1618,10 +1651,10 @@ class _UpdateVitalsScreenState extends State<UpdateVitalsScreen> {
                               ));
                             }
 
-                            if (weightVal > 0) {
+                            if (weightText.isNotEmpty) {
                               vitalsList.add(VitalItemEntry(
                                 name: 'Weight',
-                                value: weightVal.toString(),
+                                value: weightText,
                                 unit: 'kg',
                                 details: 'Patient Scale',
                                 status: 'Normal',
@@ -1678,12 +1711,12 @@ class _UpdateVitalsScreenState extends State<UpdateVitalsScreen> {
                             VisitsRepositoryImpl().recordPatientVitals(
                               RecordVitalsRequest(
                                 appointmentId: aptId,
-                                bloodPressure: cleanBp.isNotEmpty ? cleanBp : '120/80',
-                                heartRate: hrVal,
-                                temperature: tempVal,
-                                bloodSugar: sugarVal,
-                                spo2: spo2Val,
-                                weight: weightVal,
+                                bloodPressure: cleanBp.isNotEmpty ? cleanBp : null,
+                                heartRate: hrText.isNotEmpty ? hrText : null,
+                                temperature: tempText.isNotEmpty ? tempText : null,
+                                bloodSugar: sugarText.isNotEmpty ? sugarText : null,
+                                spo2: spo2Text.isNotEmpty ? spo2Text : null,
+                                weight: weightText.isNotEmpty ? weightText : null,
                                 reason: reasonString,
                                 notes: notesText,
                                 vitalImages: vitalImagesMap,
@@ -2213,6 +2246,74 @@ class _UpdateVitalsScreenState extends State<UpdateVitalsScreen> {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildAvatar(String avatarUrl, String patientName, double size) {
+    final clean = avatarUrl.trim();
+    if (clean.isNotEmpty && clean != 'null' && clean != 'undefined') {
+      if (clean.startsWith('data:image/')) {
+        try {
+          final commaIdx = clean.indexOf(',');
+          final base64Str = commaIdx != -1 ? clean.substring(commaIdx + 1) : clean;
+          final bytes = base64Decode(base64Str.replaceAll(RegExp(r'\s+'), ''));
+          return Image.memory(
+            bytes,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => _buildFallbackAvatar(size),
+          );
+        } catch (_) {}
+      }
+
+      if (clean.startsWith('file://') ||
+          (!clean.startsWith('http://') &&
+              !clean.startsWith('https://') &&
+              File(clean.replaceFirst('file://', '')).existsSync())) {
+        try {
+          final filePath = clean.replaceFirst('file://', '');
+          final file = File(filePath);
+          if (file.existsSync()) {
+            return Image.file(
+              file,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => _buildFallbackAvatar(size),
+            );
+          }
+        } catch (_) {}
+      }
+
+      final fullUrl = formatImageUrl(clean);
+      if (fullUrl.startsWith('http://') || fullUrl.startsWith('https://')) {
+        return Image.network(
+          fullUrl,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return _buildFallbackAvatar(size);
+          },
+        );
+      }
+    }
+
+    return _buildFallbackAvatar(size);
+  }
+
+  Widget _buildFallbackAvatar(double size) {
+    return Container(
+      width: size,
+      height: size,
+      color: const Color(0xFFF1F5F9),
+      alignment: Alignment.center,
+      child: Icon(
+        Icons.person_rounded,
+        color: const Color(0xFF94A3B8),
+        size: size * 0.55,
       ),
     );
   }

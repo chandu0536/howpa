@@ -1,25 +1,37 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:howpa_nurse/features/visits/presentation/screens/visits_screen.dart';
 import 'package:howpa_nurse/features/vitals/presentation/screens/update_vitals_screen.dart';
 import 'package:howpa_nurse/features/profile/presentation/screens/profile_screen.dart';
-
+import 'package:howpa_nurse/features/visits/data/models/visit_models.dart';
 import 'package:howpa_nurse/features/visits/data/repositories/visits_repository.dart';
 
 class VitalsItem {
   final String id;
+  final String? orderId;
   final String patientName;
   final String timeText;
   final String statusText;
   final String noteText;
   final String avatarUrl;
+  final String? patientAge;
+  final String? patientGender;
+  final bool isFamilyMember;
+  final String? relation;
 
   VitalsItem({
     required this.id,
+    this.orderId,
     required this.patientName,
     required this.timeText,
     required this.statusText,
     required this.noteText,
     required this.avatarUrl,
+    this.patientAge,
+    this.patientGender,
+    this.isFamilyMember = false,
+    this.relation,
   });
 }
 
@@ -54,11 +66,16 @@ class _VitalsScreenState extends State<VitalsScreen> {
         }).map((v) {
           return VitalsItem(
             id: v.id,
+            orderId: v.displayOrderId,
             patientName: v.patientName,
             timeText: v.time,
             statusText: 'Vitals updated recently',
             noteText: 'Please monitor BP every 2 hours and update...',
             avatarUrl: v.avatarUrl,
+            patientAge: v.patientAge,
+            patientGender: v.patientGender,
+            isFamilyMember: v.isFamilyMember,
+            relation: v.relation,
           );
         }).toList();
         _isLoading = false;
@@ -178,13 +195,7 @@ class _VitalsScreenState extends State<VitalsScreen> {
                   border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
                 ),
                 child: ClipOval(
-                  child: Image.network(
-                    item.avatarUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return const Icon(Icons.person_rounded, color: Color(0xFF94A3B8), size: 30);
-                    },
-                  ),
+                  child: _buildAvatar(item.avatarUrl, item.patientName, 56),
                 ),
               ),
               const SizedBox(width: 16),
@@ -219,6 +230,46 @@ class _VitalsScreenState extends State<VitalsScreen> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 2),
+                    Text(
+                      formatDemographics(
+                        gender: item.patientGender,
+                        age: item.patientAge,
+                        isFamilyMember: item.isFamilyMember,
+                        bookedByName: null,
+                      ),
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                    if (item.orderId != null && item.orderId!.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.tag_rounded, size: 11, color: Color(0xFF64748B)),
+                            const SizedBox(width: 3),
+                            Text(
+                              'Order ID: ${item.orderId}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF334155),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 6),
                     Row(
                       children: [
@@ -269,6 +320,7 @@ class _VitalsScreenState extends State<VitalsScreen> {
                   MaterialPageRoute(
                     builder: (context) => UpdateVitalsScreen(
                       appointmentId: item.id,
+                      orderId: item.orderId,
                       patientName: item.patientName,
                       avatarUrl: item.avatarUrl,
                     ),
@@ -377,6 +429,74 @@ class _VitalsScreenState extends State<VitalsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAvatar(String avatarUrl, String patientName, double size) {
+    final clean = avatarUrl.trim();
+    if (clean.isNotEmpty && clean != 'null' && clean != 'undefined') {
+      if (clean.startsWith('data:image/')) {
+        try {
+          final commaIdx = clean.indexOf(',');
+          final base64Str = commaIdx != -1 ? clean.substring(commaIdx + 1) : clean;
+          final bytes = base64Decode(base64Str.replaceAll(RegExp(r'\s+'), ''));
+          return Image.memory(
+            bytes,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => _buildFallbackAvatar(size),
+          );
+        } catch (_) {}
+      }
+
+      if (clean.startsWith('file://') ||
+          (!clean.startsWith('http://') &&
+              !clean.startsWith('https://') &&
+              File(clean.replaceFirst('file://', '')).existsSync())) {
+        try {
+          final filePath = clean.replaceFirst('file://', '');
+          final file = File(filePath);
+          if (file.existsSync()) {
+            return Image.file(
+              file,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => _buildFallbackAvatar(size),
+            );
+          }
+        } catch (_) {}
+      }
+
+      final fullUrl = formatImageUrl(clean);
+      if (fullUrl.startsWith('http://') || fullUrl.startsWith('https://')) {
+        return Image.network(
+          fullUrl,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return _buildFallbackAvatar(size);
+          },
+        );
+      }
+    }
+
+    return _buildFallbackAvatar(size);
+  }
+
+  Widget _buildFallbackAvatar(double size) {
+    return Container(
+      width: size,
+      height: size,
+      color: const Color(0xFFF1F5F9),
+      alignment: Alignment.center,
+      child: Icon(
+        Icons.person_rounded,
+        color: const Color(0xFF94A3B8),
+        size: size * 0.55,
       ),
     );
   }

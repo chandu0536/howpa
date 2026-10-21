@@ -82,6 +82,8 @@ class AppRouter {
         final args = settings.arguments as Map<String, dynamic>?;
         return MaterialPageRoute(
           builder: (_) => UpdateVitalsScreen(
+            appointmentId: args?['appointmentId'] ?? '',
+            orderId: args?['orderId'],
             patientName: args?['patientName'] ?? 'Patient',
             avatarUrl: args?['avatarUrl'] ?? 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150',
           ),

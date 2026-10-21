@@ -7,6 +7,7 @@ import 'package:howpa_nurse/features/profile/data/models/profile_models.dart';
 import 'package:howpa_nurse/features/profile/data/repositories/profile_repository.dart';
 import 'package:howpa_nurse/features/home/presentation/screens/nurse_dashboard_screen.dart';
 import 'package:howpa_nurse/features/auth/presentation/screens/onboarding_screen.dart';
+import 'package:howpa_nurse/features/auth/data/repositories/auth_repository.dart';
 import 'package:howpa_nurse/core/network/api_exceptions.dart';
 import 'package:howpa_nurse/core/widgets/no_internet_widget.dart';
 import 'package:howpa_nurse/features/visits/data/models/visit_models.dart';
@@ -73,23 +74,26 @@ class _VerificationInProgressScreenState
   }
 
   Future<void> _loadInitialUserData() async {
-    final phone =
-        widget.registeredPhone ?? UserProfileManager.instance.phoneNumber;
-    final storedPhone = await TokenStorage.getPhone();
-    final mgrPhoto =
-        UserProfileManager.instance.fullProfilePhotoUrl ??
-        UserProfileManager.instance.profilePhotoUrl;
+    final incomingPhone = widget.registeredPhone ?? '';
+    final storedPhone = await TokenStorage.getPhone() ?? '';
+    final phone = incomingPhone.isNotEmpty ? incomingPhone : storedPhone;
+
+    final incomingDigits = phone.replaceAll(RegExp(r'\D'), '');
+    final mgrDigits = UserProfileManager.instance.phoneNumber.replaceAll(RegExp(r'\D'), '');
+
+    final isMatching = incomingDigits.isNotEmpty &&
+        mgrDigits.isNotEmpty &&
+        (mgrDigits.endsWith(incomingDigits) || incomingDigits.endsWith(mgrDigits));
 
     if (mounted) {
       setState(() {
-        _registeredPhone = phone.isNotEmpty
-            ? phone
-            : (storedPhone?.isNotEmpty == true
-                  ? storedPhone!
-                  : 'Registered Mobile');
-        _nurseName = UserProfileManager.instance.fullName;
-        if (mgrPhoto != null && mgrPhoto.trim().isNotEmpty) {
-          _profilePhotoUrl = mgrPhoto.trim();
+        _registeredPhone = phone.isNotEmpty ? phone : 'Registered Mobile';
+        _nurseName = isMatching ? UserProfileManager.instance.fullName : '';
+        if (isMatching && UserProfileManager.instance.profilePhotoUrl?.isNotEmpty == true) {
+          _profilePhotoUrl = UserProfileManager.instance.fullProfilePhotoUrl ??
+              UserProfileManager.instance.profilePhotoUrl;
+        } else {
+          _profilePhotoUrl = null;
         }
       });
     }
@@ -322,7 +326,7 @@ class _VerificationInProgressScreenState
     );
 
     if (shouldLogout == true && mounted) {
-      await TokenStorage.clear();
+      await AuthRepositoryImpl().logout();
       if (!mounted) return;
       Navigator.pushAndRemoveUntil(
         context,

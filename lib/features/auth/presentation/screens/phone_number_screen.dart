@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:howpa_nurse/core/network/api_exceptions.dart';
+import 'package:howpa_nurse/core/network/token_storage.dart';
+import 'package:howpa_nurse/core/services/user_profile_manager.dart';
+import 'package:howpa_nurse/core/services/booking_notification_manager.dart';
+import 'package:howpa_nurse/features/visits/data/repositories/visits_repository.dart';
 import 'package:howpa_nurse/features/auth/data/repositories/auth_repository.dart';
 import 'onboarding_screen.dart';
 import 'otp_screen.dart';
@@ -32,6 +36,12 @@ class _PhoneNumberScreenState extends State<PhoneNumberScreen> {
   @override
   void initState() {
     super.initState();
+    // Ensure any leftover previous session data is completely purged
+    UserProfileManager.instance.reset();
+    TokenStorage.clear();
+    VisitsRepositoryImpl.clearAllCache();
+    BookingNotificationManager.clearAll();
+
     _phoneFocusNode.addListener(() {
       setState(() {});
     });

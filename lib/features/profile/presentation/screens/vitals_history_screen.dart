@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../vitals/data/models/vitals_details_model.dart';
 import '../../../vitals/presentation/widgets/view_vitals_bottom_sheet.dart';
+import '../../../visits/data/models/visit_models.dart';
 import '../../../visits/data/repositories/visits_repository.dart';
 
 class VitalsHistoryScreen extends StatefulWidget {
@@ -323,6 +324,20 @@ class _VitalsHistoryScreenState extends State<VitalsHistoryScreen> {
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        formatDemographics(
+                          gender: summary.patientGender,
+                          age: summary.patientAge,
+                          isFamilyMember: summary.isFamilyMember,
+                          bookedByName: null,
+                        ),
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF64748B),
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(

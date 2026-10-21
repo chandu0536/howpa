@@ -113,6 +113,36 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
   void _loadExistingData() {
     final manager = UserProfileManager.instance;
 
+    // Security check: Only prefill if the manager's phone number actually matches this screen's phone number!
+    final incomingDigits = widget.phoneNumber.replaceAll(RegExp(r'\D'), '');
+    final managerDigits = manager.phoneNumber.replaceAll(RegExp(r'\D'), '');
+
+    final isMatching = incomingDigits.isNotEmpty &&
+        managerDigits.isNotEmpty &&
+        (managerDigits.endsWith(incomingDigits) || incomingDigits.endsWith(managerDigits));
+
+    if (!isMatching) {
+      // The cached manager belongs to a different nurse or previous session! Clear it now.
+      manager.reset();
+      manager.updateProfileDetails(phoneNumber: widget.phoneNumber);
+      _fullNameController.clear();
+      _dobController.clear();
+      _emailController.clear();
+      _experienceController.clear();
+      _locationController.clear();
+      _districtController.clear();
+      _areaController.clear();
+      _stateController.clear();
+      _selectedGender = null;
+      _selectedSpecialization = null;
+      _profileImageFile = null;
+      _hasProfilePhoto = false;
+      _latitude = null;
+      _longitude = null;
+      _fetchProfileFromBackend();
+      return;
+    }
+
     if (manager.fullName.isNotEmpty && manager.fullName != 'Nurse') {
       _fullNameController.text = manager.fullName;
     }
@@ -166,20 +196,29 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
     try {
       final user = await ProfileRepositoryImpl().getProfile();
       if (user != null && mounted) {
+        // Double check: if user.phone is returned from backend, verify it matches widget.phoneNumber
+        final incomingDigits = widget.phoneNumber.replaceAll(RegExp(r'\D'), '');
+        final userPhoneDigits = user.phone.replaceAll(RegExp(r'\D'), '');
+        if (incomingDigits.isNotEmpty && userPhoneDigits.isNotEmpty &&
+            !userPhoneDigits.endsWith(incomingDigits) && !incomingDigits.endsWith(userPhoneDigits)) {
+          // This profile belongs to a different nurse account, do not prefill!
+          return;
+        }
+
         setState(() {
-          if (_fullNameController.text.isEmpty && user.fullName != null && user.fullName!.isNotEmpty) {
+          if (_fullNameController.text.isEmpty && user.fullName != null && user.fullName!.isNotEmpty && user.fullName != 'Nurse') {
             _fullNameController.text = user.fullName!;
           }
-          if (user.email != null && user.email!.trim().isNotEmpty && user.email!.trim() != 'null') {
+          if (_emailController.text.isEmpty && user.email != null && user.email!.trim().isNotEmpty && user.email!.trim() != 'null') {
             _emailController.text = user.email!.trim();
           }
-          if (user.dob != null && user.dob!.trim().isNotEmpty && user.dob!.trim() != 'null') {
+          if (_dobController.text.isEmpty && user.dob != null && user.dob!.trim().isNotEmpty && user.dob!.trim() != 'null') {
             final cleaned = UserProfileManager.formatCleanDob(user.dob);
             if (cleaned.isNotEmpty) {
               _dobController.text = cleaned;
             }
           }
-          if (user.gender != null && user.gender!.trim().isNotEmpty && user.gender!.trim() != 'null') {
+          if (_selectedGender == null && user.gender != null && user.gender!.trim().isNotEmpty && user.gender!.trim() != 'null') {
             final normalized = UserProfileManager.normalizeGender(user.gender);
             if (normalized != null) {
               _selectedGender = normalized;
@@ -188,7 +227,7 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
           if (_experienceController.text.isEmpty && user.experienceYears != null) {
             _experienceController.text = user.experienceYears.toString();
           }
-          if (_selectedSpecialization == null && user.specialization != null && user.specialization!.isNotEmpty) {
+          if (_selectedSpecialization == null && user.specialization != null && user.specialization!.isNotEmpty && user.specialization != 'Nurse Care') {
             _selectedSpecialization = user.specialization;
           }
           if (_locationController.text.isEmpty && user.address != null && user.address!.isNotEmpty) {
@@ -711,7 +750,7 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'GPS Location (${details.latitude.toStringAsFixed(4)}, ${details.longitude.toStringAsFixed(4)}) fetched successfully!',
+                    'GPS Location fetched successfully!',
                   ),
                 ),
               ],
@@ -789,7 +828,7 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Location (${result.latitude.toStringAsFixed(4)}, ${result.longitude.toStringAsFixed(4)}) selected from Map!',
+                  'Location selected from Map!',
                 ),
               ),
             ],
@@ -1413,33 +1452,6 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                           ),
                         ],
                       ),
-                      if (_latitude != null && _longitude != null) ...[
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF0FDF4),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFF86EFAC)),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.gps_fixed_rounded, color: Color(0xFF16A34A), size: 16),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'GPS Coordinates: ${_latitude!.toStringAsFixed(5)}, ${_longitude!.toStringAsFixed(5)} (Ready)',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF15803D),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
                       const SizedBox(height: 16),
 
                       // Divider with subtitle

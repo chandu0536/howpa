@@ -10,9 +10,12 @@ import 'package:howpa_nurse/features/profile/presentation/screens/payment_earnin
 import 'package:howpa_nurse/features/profile/presentation/screens/vitals_history_screen.dart';
 import 'package:howpa_nurse/features/profile/presentation/screens/help_support_screen.dart';
 import 'package:howpa_nurse/features/profile/presentation/screens/terms_privacy_screen.dart';
+import 'package:howpa_nurse/features/notifications/presentation/screens/notifications_screen.dart';
+import 'package:howpa_nurse/core/services/push_notification_service.dart';
 import 'package:howpa_nurse/core/services/user_profile_manager.dart';
 import 'package:howpa_nurse/features/profile/data/models/profile_models.dart';
 import 'package:howpa_nurse/features/profile/data/repositories/profile_repository.dart';
+import 'package:howpa_nurse/features/auth/data/repositories/auth_repository.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -413,6 +416,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         );
                       },
                     ),
+                    const Divider(height: 1, color: Color(0xFFF1F5F9), indent: 16, endIndent: 16),
+                    _buildMenuItem(
+                      title: 'Notifications',
+                      icon: Icons.notifications_none_rounded,
+                      iconColor: const Color(0xFF6366F1),
+                      iconBgColor: const Color(0xFFEEF2FF),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const NotificationsScreen()),
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -441,7 +457,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ElevatedButton(
                               onPressed: () async {
                                 Navigator.pop(ctx);
-                                await TokenStorage.clear();
+                                await AuthRepositoryImpl().logout();
                                 if (context.mounted) {
                                   Navigator.pushNamedAndRemoveUntil(
                                     context,
@@ -573,6 +589,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       setDialogState(() => isDeleting = true);
                       try {
                         await _profileRepo.deleteAccount(reason: reasonController.text.trim());
+                      } catch (_) {}
+                      try {
+                        await PushNotificationService.instance.unregisterToken();
                       } catch (_) {}
                       await TokenStorage.clear();
                       if (ctx.mounted) Navigator.pop(ctx);

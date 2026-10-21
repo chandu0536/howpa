@@ -2,6 +2,10 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/network/api_exceptions.dart';
 import '../../../../core/network/token_storage.dart';
+import '../../../../core/services/push_notification_service.dart';
+import '../../../../core/services/user_profile_manager.dart';
+import '../../../../core/services/booking_notification_manager.dart';
+import '../../../visits/data/repositories/visits_repository.dart';
 import '../models/auth_models.dart';
 
 abstract class AuthRepository {
@@ -57,15 +61,23 @@ class AuthRepositoryImpl implements AuthRepository {
     await TokenStorage.saveToken(authResponse.token);
     await TokenStorage.savePhone(request.phone);
 
+    // Sync FCM push notification token with backend server
+    try {
+      await PushNotificationService.instance.syncTokenWithBackend();
+    } catch (_) {}
+
     return authResponse;
   }
 
   @override
   Future<bool> logout() async {
     try {
-      await _client.delete(ApiEndpoints.deviceToken);
+      await PushNotificationService.instance.unregisterToken();
     } catch (_) {}
     await TokenStorage.clear();
+    UserProfileManager.instance.reset();
+    VisitsRepositoryImpl.clearAllCache();
+    BookingNotificationManager.clearAll();
     return true;
   }
 }

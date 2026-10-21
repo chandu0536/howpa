@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:howpa_nurse/core/network/api_exceptions.dart';
+import 'package:howpa_nurse/core/network/token_storage.dart';
 import 'package:howpa_nurse/core/services/user_profile_manager.dart';
 import 'package:howpa_nurse/features/profile/data/repositories/profile_repository.dart';
 import 'package:howpa_nurse/features/auth/presentation/screens/registration_step1_screen.dart';
@@ -80,6 +81,16 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
   }
 
   Future<void> _fetchExistingDocuments() async {
+    final incomingDigits = widget.phoneNumber.replaceAll(RegExp(r'\D'), '');
+    final storedPhone = (await TokenStorage.getPhone() ?? '').replaceAll(RegExp(r'\D'), '');
+    if (incomingDigits.isNotEmpty &&
+        storedPhone.isNotEmpty &&
+        !storedPhone.endsWith(incomingDigits) &&
+        !incomingDigits.endsWith(storedPhone)) {
+      // Different phone number! Do not fetch previous documents
+      return;
+    }
+
     setState(() => _isFetchingDocs = true);
     try {
       final docStatus = await ProfileRepositoryImpl().getDocumentsStatus();

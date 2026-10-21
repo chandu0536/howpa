@@ -1,13 +1,26 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'core/routes/app_routes.dart';
 import 'core/routes/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/system_ui.dart';
+import 'core/services/push_notification_service.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemUI.setDarkStatusBar();
+
+  // Initialize Firebase & FCM Push Notification Service
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    await PushNotificationService.instance.initialize();
+  } catch (e) {
+    debugPrint('Firebase push notification initialization warning: $e');
+  }
 
   // Prevent crash & white screens on unexpected UI exceptions
   FlutterError.onError = (FlutterErrorDetails details) {
@@ -43,13 +56,28 @@ void main() {
   runApp(const HowpaNurseApp());
 }
 
-class HowpaNurseApp extends StatelessWidget {
+class HowpaNurseApp extends StatefulWidget {
   const HowpaNurseApp({super.key});
+
+  @override
+  State<HowpaNurseApp> createState() => _HowpaNurseAppState();
+}
+
+class _HowpaNurseAppState extends State<HowpaNurseApp> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Trigger notification permission dialog as soon as the app window is mounted & visible
+      PushNotificationService.instance.requestNotificationPermissions();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Howpa Nurse',
+      navigatorKey: PushNotificationService.navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       initialRoute: AppRoutes.initial,

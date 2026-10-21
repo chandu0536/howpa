@@ -149,7 +149,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           child: const Icon(Icons.delete_outline, color: Colors.white),
                         ),
                         onDismissed: (_) => _deleteNotification(item.id),
-                        child: Container(
+                        child: Material(
                           color: isUnread ? Colors.blue.withValues(alpha: 0.04) : Colors.white,
                           child: ListTile(
                             contentPadding:

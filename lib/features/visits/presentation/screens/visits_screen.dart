@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:howpa_nurse/features/vitals/presentation/screens/update_vitals_screen.dart';
@@ -10,6 +12,7 @@ import 'package:howpa_nurse/features/visits/data/models/visit_models.dart';
 import 'package:howpa_nurse/features/visits/data/repositories/visits_repository.dart';
 import 'package:howpa_nurse/features/vitals/presentation/widgets/view_vitals_bottom_sheet.dart';
 import 'package:howpa_nurse/features/vitals/data/models/vitals_details_model.dart';
+import 'package:howpa_nurse/core/network/api_exceptions.dart';
 
 // Data models for each tab
 class NewRequestItem {
@@ -24,9 +27,19 @@ class NewRequestItem {
   final double? latitude;
   final double? longitude;
   final bool femaleNursePreferred;
+  final bool isFamilyMember;
+  final String? patientAge;
+  final String? patientGender;
+  final String? relation;
+  final String? bookedByName;
+  final String? appointmentId;
+  final String? requestId;
+  final String? orderId;
+  final DateTime? scheduledDate;
 
   NewRequestItem({
     required this.id,
+    this.orderId,
     required this.patientName,
     required this.address,
     required this.distance,
@@ -37,7 +50,49 @@ class NewRequestItem {
     this.latitude,
     this.longitude,
     this.femaleNursePreferred = false,
+    this.isFamilyMember = false,
+    this.patientAge,
+    this.patientGender,
+    this.relation,
+    this.bookedByName,
+    this.appointmentId,
+    this.requestId,
+    this.scheduledDate,
   });
+
+  String get formattedAppointmentDate {
+    final d = scheduledDate ?? DateTime.now();
+    const days = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday'
+    ];
+    final dayName = days[d.weekday - 1];
+    final dd = d.day.toString().padLeft(2, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    final yyyy = d.year.toString();
+    return '$dayName, $dd-$mm-$yyyy';
+  }
+
+  String get displayOrderId {
+    if (orderId != null && orderId!.trim().isNotEmpty && orderId != 'null') {
+      return orderId!.trim();
+    }
+    if (appointmentId != null && appointmentId!.trim().isNotEmpty && appointmentId != 'null' && !RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(appointmentId!.trim())) {
+      return appointmentId!.trim();
+    }
+    if (requestId != null && requestId!.trim().isNotEmpty && requestId != 'null' && !RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(requestId!.trim())) {
+      return requestId!.trim();
+    }
+    if (id.isNotEmpty && !RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(id)) {
+      return id;
+    }
+    return '';
+  }
 }
 
 class TodayVisitItem {
@@ -57,9 +112,19 @@ class TodayVisitItem {
   final double? longitude;
   final bool isVitalsUpdated;
   final String doctorName;
+  final bool isFamilyMember;
+  final String? patientAge;
+  final String? patientGender;
+  final String? relation;
+  final String? bookedByName;
+  final String? appointmentId;
+  final String? requestId;
+  final String? orderId;
+  final DateTime? scheduledDate;
 
   TodayVisitItem({
     required this.id,
+    this.orderId,
     required this.patientName,
     required this.timeInterval,
     required this.address,
@@ -75,7 +140,49 @@ class TodayVisitItem {
     this.longitude,
     this.isVitalsUpdated = false,
     this.doctorName = 'Doctor',
+    this.isFamilyMember = false,
+    this.patientAge,
+    this.patientGender,
+    this.relation,
+    this.bookedByName,
+    this.appointmentId,
+    this.requestId,
+    this.scheduledDate,
   });
+
+  String get formattedAppointmentDate {
+    final d = scheduledDate ?? DateTime.now();
+    const days = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday'
+    ];
+    final dayName = days[d.weekday - 1];
+    final dd = d.day.toString().padLeft(2, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    final yyyy = d.year.toString();
+    return '$dayName, $dd-$mm-$yyyy';
+  }
+
+  String get displayOrderId {
+    if (orderId != null && orderId!.trim().isNotEmpty && orderId != 'null') {
+      return orderId!.trim();
+    }
+    if (appointmentId != null && appointmentId!.trim().isNotEmpty && appointmentId != 'null' && !RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(appointmentId!.trim())) {
+      return appointmentId!.trim();
+    }
+    if (requestId != null && requestId!.trim().isNotEmpty && requestId != 'null' && !RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(requestId!.trim())) {
+      return requestId!.trim();
+    }
+    if (id.isNotEmpty && !RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(id)) {
+      return id;
+    }
+    return '';
+  }
 
   TodayVisitItem copyWith({
     String? id,
@@ -94,9 +201,19 @@ class TodayVisitItem {
     double? longitude,
     bool? isVitalsUpdated,
     String? doctorName,
+    bool? isFamilyMember,
+    String? patientAge,
+    String? patientGender,
+    String? relation,
+    String? bookedByName,
+    String? appointmentId,
+    String? requestId,
+    String? orderId,
+    DateTime? scheduledDate,
   }) {
     return TodayVisitItem(
       id: id ?? this.id,
+      orderId: orderId ?? this.orderId,
       patientName: patientName ?? this.patientName,
       timeInterval: timeInterval ?? this.timeInterval,
       address: address ?? this.address,
@@ -112,12 +229,23 @@ class TodayVisitItem {
       longitude: longitude ?? this.longitude,
       isVitalsUpdated: isVitalsUpdated ?? this.isVitalsUpdated,
       doctorName: doctorName ?? this.doctorName,
+      isFamilyMember: isFamilyMember ?? this.isFamilyMember,
+      patientAge: patientAge ?? this.patientAge,
+      patientGender: patientGender ?? this.patientGender,
+      relation: relation ?? this.relation,
+      bookedByName: bookedByName ?? this.bookedByName,
+      appointmentId: appointmentId ?? this.appointmentId,
+      requestId: requestId ?? this.requestId,
+      scheduledDate: scheduledDate ?? this.scheduledDate,
     );
   }
 }
 
 class CompletedVisitItem {
   final String id;
+  final String? orderId;
+  final String? appointmentId;
+  final String? requestId;
   final String patientName;
   final String dateTime;
   final String duration;
@@ -125,9 +253,18 @@ class CompletedVisitItem {
   final String address;
   final String avatarUrl;
   final PatientVitalsSummary? vitalsSummary;
+  final DateTime? scheduledDate;
+  final bool isFamilyMember;
+  final String? patientAge;
+  final String? patientGender;
+  final String? relation;
+  final String? bookedByName;
 
   CompletedVisitItem({
     required this.id,
+    this.orderId,
+    this.appointmentId,
+    this.requestId,
     required this.patientName,
     required this.dateTime,
     required this.duration,
@@ -135,16 +272,52 @@ class CompletedVisitItem {
     required this.address,
     required this.avatarUrl,
     this.vitalsSummary,
+    this.scheduledDate,
+    this.isFamilyMember = false,
+    this.patientAge,
+    this.patientGender,
+    this.relation,
+    this.bookedByName,
   });
+
+  String get formattedAppointmentDate {
+    final d = scheduledDate ?? DateTime.now();
+    const days = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday'
+    ];
+    final dayName = days[d.weekday - 1];
+    final dd = d.day.toString().padLeft(2, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    final yyyy = d.year.toString();
+    return '$dayName, $dd-$mm-$yyyy';
+  }
+
+  String get displayOrderId {
+    if (orderId != null && orderId!.trim().isNotEmpty && orderId != 'null') {
+      return orderId!.trim();
+    }
+    if (id.isNotEmpty && !RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(id)) {
+      return id;
+    }
+    return '';
+  }
 }
 
 class VisitsScreen extends StatefulWidget {
   final int initialTabIndex; // 0: New Requests, 1: Today, 2: Completed
+  final String? highlightedVisitId; // ID of visit clicked on home screen
   final String? highlightedPatientName; // Name of person clicked on home screen
 
   const VisitsScreen({
     super.key,
     this.initialTabIndex = 0,
+    this.highlightedVisitId,
     this.highlightedPatientName,
   });
 
@@ -155,22 +328,169 @@ class VisitsScreen extends StatefulWidget {
 class _VisitsScreenState extends State<VisitsScreen> {
   final _visitsRepo = VisitsRepositoryImpl();
   late int _selectedTabIndex; // 0: New Requests, 1: Today, 2: Completed
+  late final PageController _pageController;
   int _currentBottomNavIndex = 1; // Visits selected
   String _searchQuery = '';
   bool _isSearching = false;
+  String? _highlightedVisitId;
   String? _highlightedPatientName;
   bool _isHighlightVisible = false;
+  final GlobalKey _targetCardKey = GlobalKey();
+  bool _hasScrolledToTarget = false;
   Timer? _blinkTimer;
   Timer? _autoRefreshTimer;
   final Set<String> _knownRequestIds = {};
   bool _isFetchingData = false;
 
+  bool _isSameVisit({
+    required String id1,
+    String? apt1,
+    String? req1,
+    String? ord1,
+    String? name1,
+    DateTime? date1,
+    required String id2,
+    String? apt2,
+    String? req2,
+    String? ord2,
+    String? name2,
+    DateTime? date2,
+  }) {
+    if (id1.isNotEmpty && id1 == id2) return true;
+    if (apt1 != null && apt1.isNotEmpty) {
+      if (apt1 == apt2 || apt1 == id2 || apt1 == req2) return true;
+    }
+    if (apt2 != null && apt2.isNotEmpty) {
+      if (apt2 == id1 || apt2 == req1) return true;
+    }
+    if (req1 != null && req1.isNotEmpty) {
+      if (req1 == req2 || req1 == id2 || req1 == apt2) return true;
+    }
+    if (req2 != null && req2.isNotEmpty) {
+      if (req2 == id1 || req2 == apt1) return true;
+    }
+    if (ord1 != null && ord1.isNotEmpty && ord2 != null && ord2.isNotEmpty) {
+      if (ord1 == ord2) return true;
+    }
+    if (name1 != null &&
+        name2 != null &&
+        name1.isNotEmpty &&
+        name2.isNotEmpty &&
+        name1.toLowerCase() != 'patient' &&
+        name1.trim().toLowerCase() == name2.trim().toLowerCase()) {
+      if (date1 != null && date2 != null) {
+        if (date1.year == date2.year && date1.month == date2.month && date1.day == date2.day) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  void _mergeOrAddCompleted(List<CompletedVisitItem> list, CompletedVisitItem newItem) {
+    final idx = list.indexWhere((existing) => _isSameVisit(
+      id1: existing.id,
+      apt1: existing.appointmentId,
+      req1: existing.requestId,
+      ord1: existing.orderId,
+      name1: existing.patientName,
+      date1: existing.scheduledDate,
+      id2: newItem.id,
+      apt2: newItem.appointmentId,
+      req2: newItem.requestId,
+      ord2: newItem.orderId,
+      name2: newItem.patientName,
+      date2: newItem.scheduledDate,
+    ));
+
+    if (idx != -1) {
+      final existing = list[idx];
+      // Prefer Nurse order ID (e.g. starts with 'NS')
+      final bestOrderId = (newItem.orderId != null && newItem.orderId!.startsWith('NS'))
+          ? newItem.orderId
+          : (existing.orderId != null && existing.orderId!.startsWith('NS')
+              ? existing.orderId
+              : (newItem.orderId?.isNotEmpty == true ? newItem.orderId : existing.orderId));
+
+      list[idx] = CompletedVisitItem(
+        id: existing.id,
+        orderId: bestOrderId,
+        appointmentId: existing.appointmentId ?? newItem.appointmentId,
+        requestId: existing.requestId ?? newItem.requestId,
+        patientName: existing.patientName.isNotEmpty && existing.patientName != 'Patient'
+            ? existing.patientName
+            : newItem.patientName,
+        dateTime: existing.dateTime.isNotEmpty ? existing.dateTime : newItem.dateTime,
+        duration: existing.duration.isNotEmpty ? existing.duration : newItem.duration,
+        doctorName: existing.doctorName.isNotEmpty && existing.doctorName != 'Doctor'
+            ? existing.doctorName
+            : newItem.doctorName,
+        address: existing.address.isNotEmpty && existing.address != 'Patient Address'
+            ? existing.address
+            : newItem.address,
+        avatarUrl: existing.avatarUrl.isNotEmpty ? existing.avatarUrl : newItem.avatarUrl,
+        scheduledDate: existing.scheduledDate ?? newItem.scheduledDate,
+        vitalsSummary: existing.vitalsSummary ?? newItem.vitalsSummary,
+        isFamilyMember: existing.isFamilyMember || newItem.isFamilyMember,
+        patientAge: (existing.patientAge != null && existing.patientAge!.isNotEmpty)
+            ? existing.patientAge
+            : newItem.patientAge,
+        patientGender: (existing.patientGender != null && existing.patientGender!.isNotEmpty)
+            ? existing.patientGender
+            : newItem.patientGender,
+        relation: existing.relation ?? newItem.relation,
+        bookedByName: existing.bookedByName ?? newItem.bookedByName,
+      );
+    } else {
+      list.add(newItem);
+    }
+  }
+
+  void _switchTab(int index) {
+    if (_selectedTabIndex != index) {
+      setState(() {
+        _selectedTabIndex = index;
+      });
+    }
+    if (_pageController.hasClients && _pageController.page?.round() != index) {
+      _pageController.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _scrollToTargetIfAvailable() {
+    if (_hasScrolledToTarget) return;
+    if ((_highlightedVisitId == null || _highlightedVisitId!.isEmpty) &&
+        (_highlightedPatientName == null || _highlightedPatientName!.isEmpty)) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 250), () {
+        if (mounted && !_hasScrolledToTarget && _targetCardKey.currentContext != null) {
+          _hasScrolledToTarget = true;
+          Scrollable.ensureVisible(
+            _targetCardKey.currentContext!,
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeInOutCubic,
+            alignment: 0.15,
+          );
+        }
+      });
+    });
+  }
+
   @override
   void initState() {
     super.initState();
     _selectedTabIndex = widget.initialTabIndex;
+    _pageController = PageController(initialPage: _selectedTabIndex);
+    _highlightedVisitId = widget.highlightedVisitId;
     _highlightedPatientName = widget.highlightedPatientName;
-    if (_highlightedPatientName != null) {
+    if (_highlightedVisitId != null || _highlightedPatientName != null) {
       _startHighlightFade();
     }
 
@@ -195,6 +515,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
 
     if (nearby.isNotEmpty || today.isNotEmpty || completed.isNotEmpty) {
       _applyData(nearby, today, completed, isInitialCache: true);
+      _scrollToTargetIfAvailable();
     }
   }
 
@@ -236,6 +557,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
       final mappedNewRequests = nearby.map((r) {
         final item = NewRequestItem(
           id: r.id,
+          orderId: r.displayOrderId,
           patientName: r.patientName,
           address: r.address,
           distance: r.distance,
@@ -246,6 +568,14 @@ class _VisitsScreenState extends State<VisitsScreen> {
           latitude: r.latitude,
           longitude: r.longitude,
           femaleNursePreferred: r.femaleNursePreferred,
+          isFamilyMember: r.isFamilyMember,
+          patientAge: r.patientAge,
+          patientGender: r.patientGender,
+          relation: r.relation,
+          bookedByName: r.bookedByName,
+          appointmentId: r.appointmentId,
+          requestId: r.requestId,
+          scheduledDate: r.scheduledDate,
         );
 
         if (r.id.isNotEmpty &&
@@ -260,7 +590,12 @@ class _VisitsScreenState extends State<VisitsScreen> {
       }).toList();
 
       final mappedTodayVisits = today.map((t) {
-        final existingIndex = _todayVisits.indexWhere((existing) => existing.id == t.id);
+        final existingIndex = _todayVisits.indexWhere((existing) =>
+            existing.id == t.id ||
+            (t.appointmentId != null && t.appointmentId!.isNotEmpty && existing.id == t.appointmentId) ||
+            (t.requestId != null && t.requestId!.isNotEmpty && existing.id == t.requestId) ||
+            (existing.appointmentId != null && existing.appointmentId!.isNotEmpty && existing.appointmentId == t.appointmentId) ||
+            (existing.requestId != null && existing.requestId!.isNotEmpty && existing.requestId == t.requestId));
         final existingItem = existingIndex != -1 ? _todayVisits[existingIndex] : null;
 
         String btnText = 'Started';
@@ -297,6 +632,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
 
         return TodayVisitItem(
           id: t.id,
+          orderId: t.displayOrderId.isNotEmpty ? t.displayOrderId : (existingItem?.orderId ?? ''),
           patientName: t.patientName,
           timeInterval: t.time,
           address: t.address,
@@ -305,81 +641,188 @@ class _VisitsScreenState extends State<VisitsScreen> {
           timeColor: accentCol,
           buttonText: btnText,
           isArrivalButton: isArrival,
-          avatarUrl: t.avatarUrl,
-          phoneNumber: t.phoneNumber,
-          latitude: t.latitude,
-          longitude: t.longitude,
+          avatarUrl: t.avatarUrl.isNotEmpty ? t.avatarUrl : (existingItem?.avatarUrl ?? ''),
+          phoneNumber: t.phoneNumber.isNotEmpty ? t.phoneNumber : (existingItem?.phoneNumber ?? ''),
+          latitude: t.latitude ?? existingItem?.latitude,
+          longitude: t.longitude ?? existingItem?.longitude,
           isVitalsUpdated: vitalsUpdated,
-          doctorName: t.doctorName,
+          doctorName: t.doctorName.isNotEmpty ? t.doctorName : (existingItem?.doctorName ?? 'Doctor'),
+          isFamilyMember: t.isFamilyMember || (existingItem?.isFamilyMember ?? false),
+          patientAge: t.patientAge ?? existingItem?.patientAge,
+          patientGender: t.patientGender ?? existingItem?.patientGender,
+          relation: t.relation ?? existingItem?.relation,
+          bookedByName: t.bookedByName ?? existingItem?.bookedByName,
+          appointmentId: t.appointmentId ?? existingItem?.appointmentId,
+          requestId: t.requestId ?? existingItem?.requestId,
+          scheduledDate: t.scheduledDate ?? existingItem?.scheduledDate,
         );
       }).toList();
 
       // Only invoke setState if data actually changed or if initial load
+      final currentCompletedCount = _completedGroups.values.fold<int>(0, (sum, list) => sum + list.length);
       final bool dataChanged = !isAutoRefresh ||
           _newRequests.length != mappedNewRequests.length ||
           _todayVisits.length != mappedTodayVisits.length ||
+          currentCompletedCount != completed.length ||
           _hasDataChanged(mappedNewRequests, mappedTodayVisits);
 
       if (dataChanged) {
         setState(() {
-          // Filter out any requests that are already accepted in today's visits
-          final filteredNew = mappedNewRequests.where((r) => !_todayVisits.any((t) => t.id == r.id)).toList();
-          _newRequests.clear();
-          _newRequests.addAll(filteredNew);
-
-          // Preserve locally accepted items if backend filter=today API hasn't synced them yet
-          final mergedTodayMap = <String, TodayVisitItem>{};
-          for (final existing in _todayVisits) {
-            mergedTodayMap[existing.id] = existing;
-          }
-          for (final fetched in mappedTodayVisits) {
-            mergedTodayMap[fetched.id] = fetched;
-          }
-
+          // 1. Process Completed Visits with full deduplication (ONLY 1 card per visit)
           if (!_completedGroups.containsKey('This Week')) {
             _completedGroups['This Week'] = [];
           }
 
-          if (completed.isNotEmpty) {
-            final existingCompletedIds = _completedGroups['This Week']!.map((c) => c.id).toSet();
-            for (final c in completed) {
-              if (!existingCompletedIds.contains(c.id)) {
-                _completedGroups['This Week']!.add(CompletedVisitItem(
-                  id: c.id,
-                  patientName: c.patientName,
-                  dateTime: c.time,
-                  duration: c.distance,
-                  doctorName: c.doctorName.isNotEmpty ? c.doctorName : 'Doctor',
-                  address: c.address,
-                  avatarUrl: c.avatarUrl,
-                ));
-              }
+          final List<CompletedVisitItem> deduplicatedCompleted = [];
+          
+          // Merge existing items from _completedGroups
+          for (final list in _completedGroups.values) {
+            for (final item in list) {
+              _mergeOrAddCompleted(deduplicatedCompleted, item);
             }
           }
 
-          // Separate today visits into active visits vs completed visits
-          final activeTodayMap = <String, TodayVisitItem>{};
-          for (final item in mergedTodayMap.values) {
-            if (item.buttonText == 'Completed' || item.isVitalsUpdated) {
-              if (!_completedGroups['This Week']!.any((c) => c.id == item.id)) {
-                _completedGroups['This Week']!.insert(0, CompletedVisitItem(
-                  id: item.id,
-                  patientName: item.patientName,
-                  dateTime: item.timeInterval,
-                  duration: item.distance,
-                  doctorName: item.doctorName.isNotEmpty ? item.doctorName : 'Doctor',
-                  address: item.address,
-                  avatarUrl: item.avatarUrl,
-                ));
-              }
+          // Merge new items from completed parameter
+          for (final c in completed) {
+            final item = CompletedVisitItem(
+              id: c.id,
+              orderId: c.displayOrderId,
+              appointmentId: c.appointmentId,
+              requestId: c.requestId,
+              patientName: c.patientName,
+              dateTime: c.time,
+              duration: c.distance,
+              doctorName: c.doctorName.isNotEmpty ? c.doctorName : 'Doctor',
+              address: c.address,
+              avatarUrl: c.avatarUrl,
+              scheduledDate: c.scheduledDate,
+              isFamilyMember: c.isFamilyMember,
+              patientAge: c.patientAge,
+              patientGender: c.patientGender,
+              relation: c.relation,
+              bookedByName: c.bookedByName,
+            );
+            _mergeOrAddCompleted(deduplicatedCompleted, item);
+            VisitsRepositoryImpl.markVisitCompleted(
+              c.id,
+              appointmentId: c.appointmentId,
+              requestId: c.requestId,
+              orderId: c.orderId,
+            );
+          }
+
+          _completedGroups['This Week'] = deduplicatedCompleted;
+
+          // 2. Filter New Requests: Remove if already in Today or Completed
+          final filteredNew = mappedNewRequests.where((r) {
+            final isInToday = _todayVisits.any((t) => _isSameVisit(
+              id1: t.id, apt1: t.appointmentId, req1: t.requestId, ord1: t.orderId,
+              id2: r.id, apt2: r.appointmentId, req2: r.requestId, ord2: r.orderId,
+            ));
+            final isCompleted = deduplicatedCompleted.any((c) => _isSameVisit(
+              id1: c.id, apt1: c.appointmentId, req1: c.requestId, ord1: c.orderId,
+              id2: r.id, apt2: r.appointmentId, req2: r.requestId, ord2: r.orderId,
+            )) || VisitsRepositoryImpl.isVisitCompleted(r.id) ||
+                (r.appointmentId != null && VisitsRepositoryImpl.isVisitCompleted(r.appointmentId!)) ||
+                (r.requestId != null && VisitsRepositoryImpl.isVisitCompleted(r.requestId!));
+            return !isInToday && !isCompleted;
+          }).toList();
+
+          _newRequests.clear();
+          _newRequests.addAll(filteredNew);
+
+          // 3. Process Today Visits: Combine and keep ONLY active, uncompleted visits
+          final candidateTodayVisits = <TodayVisitItem>[];
+          candidateTodayVisits.addAll(_todayVisits);
+          for (final fetched in mappedTodayVisits) {
+            final idx = candidateTodayVisits.indexWhere((existing) => _isSameVisit(
+              id1: existing.id, apt1: existing.appointmentId, req1: existing.requestId, ord1: existing.orderId,
+              id2: fetched.id, apt2: fetched.appointmentId, req2: fetched.requestId, ord2: fetched.orderId,
+            ));
+            if (idx != -1) {
+              final existing = candidateTodayVisits[idx];
+              candidateTodayVisits[idx] = fetched.copyWith(
+                avatarUrl: fetched.avatarUrl.isNotEmpty ? fetched.avatarUrl : existing.avatarUrl,
+                buttonText: existing.buttonText != 'Started' ? existing.buttonText : fetched.buttonText,
+                accentColor: existing.accentColor,
+                timeColor: existing.timeColor,
+                isArrivalButton: existing.isArrivalButton,
+                isVitalsUpdated: existing.isVitalsUpdated || fetched.isVitalsUpdated,
+                patientAge: (fetched.patientAge != null && fetched.patientAge!.isNotEmpty)
+                    ? fetched.patientAge
+                    : existing.patientAge,
+                patientGender: (fetched.patientGender != null && fetched.patientGender!.isNotEmpty)
+                    ? fetched.patientGender
+                    : existing.patientGender,
+                isFamilyMember: fetched.isFamilyMember || existing.isFamilyMember,
+                relation: (fetched.relation != null && fetched.relation!.isNotEmpty)
+                    ? fetched.relation
+                    : existing.relation,
+                bookedByName: (fetched.bookedByName != null && fetched.bookedByName!.isNotEmpty)
+                    ? fetched.bookedByName
+                    : existing.bookedByName,
+              );
             } else {
-              activeTodayMap[item.id] = item;
+              candidateTodayVisits.add(fetched);
+            }
+          }
+
+          final activeTodayMap = <String, TodayVisitItem>{};
+          for (final item in candidateTodayVisits) {
+            final isCompleted = deduplicatedCompleted.any((c) => _isSameVisit(
+              id1: c.id, apt1: c.appointmentId, req1: c.requestId, ord1: c.orderId, name1: c.patientName, date1: c.scheduledDate,
+              id2: item.id, apt2: item.appointmentId, req2: item.requestId, ord2: item.orderId, name2: item.patientName, date2: item.scheduledDate,
+            )) ||
+            VisitsRepositoryImpl.isVisitCompleted(item.id) ||
+            (item.appointmentId != null && VisitsRepositoryImpl.isVisitCompleted(item.appointmentId!)) ||
+            (item.requestId != null && VisitsRepositoryImpl.isVisitCompleted(item.requestId!)) ||
+            (item.orderId != null && VisitsRepositoryImpl.isVisitCompleted(item.orderId!)) ||
+            item.buttonText == 'Completed' ||
+            item.isVitalsUpdated;
+
+            if (isCompleted) {
+              // Add to completed list if not already present
+              final compItem = CompletedVisitItem(
+                id: item.id,
+                orderId: item.displayOrderId,
+                appointmentId: item.appointmentId,
+                requestId: item.requestId,
+                patientName: item.patientName,
+                dateTime: item.timeInterval,
+                duration: item.distance,
+                doctorName: item.doctorName.isNotEmpty ? item.doctorName : 'Doctor',
+                address: item.address,
+                avatarUrl: item.avatarUrl,
+                scheduledDate: item.scheduledDate,
+                isFamilyMember: item.isFamilyMember,
+                patientAge: item.patientAge,
+                patientGender: item.patientGender,
+                relation: item.relation,
+                bookedByName: item.bookedByName,
+              );
+              _mergeOrAddCompleted(deduplicatedCompleted, compItem);
+              VisitsRepositoryImpl.markVisitCompleted(
+                item.id,
+                appointmentId: item.appointmentId,
+                requestId: item.requestId,
+                orderId: item.orderId,
+              );
+            } else {
+              final existingActiveIdx = activeTodayMap.values.toList().indexWhere((act) => _isSameVisit(
+                id1: act.id, apt1: act.appointmentId, req1: act.requestId, ord1: act.orderId,
+                id2: item.id, apt2: item.appointmentId, req2: item.requestId, ord2: item.orderId,
+              ));
+              if (existingActiveIdx == -1) {
+                activeTodayMap[item.id] = item;
+              }
             }
           }
 
           _todayVisits.clear();
           _todayVisits.addAll(activeTodayMap.values);
+          _completedGroups['This Week'] = deduplicatedCompleted;
         });
+        _scrollToTargetIfAvailable();
       }
 
       // Trigger alert popup notification for new booking
@@ -410,6 +853,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
       context: context,
       item: VisitRequestItem(
         id: item.id,
+        orderId: item.displayOrderId,
         patientName: item.patientName,
         address: item.address,
         distance: item.distance,
@@ -419,6 +863,12 @@ class _VisitsScreenState extends State<VisitsScreen> {
         phoneNumber: item.phoneNumber,
         latitude: item.latitude,
         longitude: item.longitude,
+        isFamilyMember: item.isFamilyMember,
+        patientAge: item.patientAge,
+        patientGender: item.patientGender,
+        relation: item.relation,
+        bookedByName: item.bookedByName,
+        scheduledDate: item.scheduledDate,
       ),
       onAccept: () async {
         await _onAcceptRequest(item);
@@ -435,6 +885,13 @@ class _VisitsScreenState extends State<VisitsScreen> {
               backgroundColor: Color(0xFFEF4444),
             ),
           );
+        }
+      },
+      onTakenByOther: () {
+        if (mounted) {
+          setState(() {
+            _newRequests.removeWhere((r) => r.id == item.id);
+          });
         }
       },
     );
@@ -459,12 +916,42 @@ class _VisitsScreenState extends State<VisitsScreen> {
   }
 
   Future<void> _openGoogleMaps(double? lat, double? lng, String address) async {
-    Uri mapUri;
-    if (lat != null && lng != null && lat != 0 && lng != 0) {
-      mapUri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
-    } else {
-      mapUri = Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}');
+    final cleanAddress = address.trim();
+    final bool isDummyAddress = cleanAddress.isEmpty ||
+        cleanAddress.toLowerCase() == 'patient home address' ||
+        cleanAddress.toLowerCase() == 'patient address' ||
+        cleanAddress.toLowerCase() == 'selected delivery address';
+
+    final bool hasValidCoords = lat != null && lng != null && lat != 0 && lng != 0;
+
+    if (!hasValidCoords && isDummyAddress) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.location_off_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text('Patient exact location coordinates are not available for this appointment.'),
+                ),
+              ],
+            ),
+            backgroundColor: Color(0xFFEF4444),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
     }
+
+    Uri mapUri;
+    if (hasValidCoords) {
+      mapUri = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng');
+    } else {
+      mapUri = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=${Uri.encodeComponent(cleanAddress)}');
+    }
+
     try {
       if (!await launchUrl(mapUri, mode: LaunchMode.externalApplication)) {
         await launchUrl(mapUri, mode: LaunchMode.platformDefault);
@@ -480,11 +967,13 @@ class _VisitsScreenState extends State<VisitsScreen> {
 
   void _startHighlightFade() {
     _isHighlightVisible = true;
-    _blinkTimer = Timer(const Duration(seconds: 4), () {
+    _blinkTimer?.cancel();
+    _blinkTimer = Timer(const Duration(seconds: 5), () {
       if (mounted) {
         setState(() {
           _isHighlightVisible = false;
           _highlightedPatientName = null;
+          _highlightedVisitId = null;
         });
       }
     });
@@ -494,6 +983,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
   void dispose() {
     _autoRefreshTimer?.cancel();
     _blinkTimer?.cancel();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -531,39 +1021,92 @@ class _VisitsScreenState extends State<VisitsScreen> {
   }
 
   Future<void> _onAcceptRequest(NewRequestItem item) async {
-    // Instant optimistic UI update (AJAX feel)
-    setState(() {
-      _newRequests.removeWhere((r) => r.id == item.id);
-      
-      _todayVisits.add(TodayVisitItem(
-        id: item.id,
-        patientName: item.patientName,
-        timeInterval: item.time.replaceAll(RegExp(r'Today,\s*'), ''),
-        address: item.address,
-        distance: item.distance,
-        accentColor: const Color(0xFF0052FF),
-        timeColor: const Color(0xFF0052FF),
-        buttonText: 'Started',
-        avatarUrl: item.avatarUrl,
-        phoneNumber: item.phoneNumber,
-        latitude: item.latitude,
-        longitude: item.longitude,
-        isVitalsUpdated: false,
-      ));
-
-      // Automatically switch to Today's Visits tab so user sees accepted request immediately!
-      _selectedTabIndex = 1;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Visit request accepted! Moved to Today\'s schedule.'),
-        backgroundColor: Color(0xFF10B981),
-      ),
+    // 1. Build Today item immediately
+    final todayItem = TodayVisitItem(
+      id: item.id,
+      orderId: item.displayOrderId,
+      patientName: item.patientName,
+      timeInterval: item.time.replaceAll(RegExp(r'Today,\s*'), ''),
+      address: item.address,
+      distance: item.distance,
+      accentColor: const Color(0xFF0052FF),
+      timeColor: const Color(0xFF0052FF),
+      buttonText: 'Started',
+      avatarUrl: item.avatarUrl,
+      phoneNumber: item.phoneNumber,
+      latitude: item.latitude,
+      longitude: item.longitude,
+      isVitalsUpdated: false,
+      isFamilyMember: item.isFamilyMember,
+      patientAge: item.patientAge,
+      patientGender: item.patientGender,
+      relation: item.relation,
+      bookedByName: item.bookedByName,
+      appointmentId: item.appointmentId,
+      requestId: item.requestId,
+      scheduledDate: item.scheduledDate,
     );
 
-    // Sync with backend API in background
-    _visitsRepo.acceptVisitRequest(item.id);
+    // 2. Optimistically update local state & immediately redirect to Today tab
+    setState(() {
+      _newRequests.removeWhere((r) =>
+          r.id == item.id ||
+          (item.displayOrderId.isNotEmpty && r.orderId == item.displayOrderId));
+      if (!_todayVisits.any((t) =>
+          t.id == item.id ||
+          (item.displayOrderId.isNotEmpty && t.orderId == item.displayOrderId))) {
+        _todayVisits.insert(0, todayItem);
+      }
+      _selectedTabIndex = 1;
+    });
+    _switchTab(1);
+
+    // 3. Send API call with all available identifiers
+    try {
+      final targetOrderId = item.displayOrderId.isNotEmpty
+          ? item.displayOrderId
+          : (item.orderId ?? (item.id.startsWith('NS') ? item.id : null));
+
+      await _visitsRepo.acceptVisitRequest(
+        item.id,
+        requestId: item.requestId,
+        orderId: targetOrderId,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Visit request accepted! Moved to Today\'s schedule.'),
+            backgroundColor: Color(0xFF10B981),
+          ),
+        );
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        final isExpired = e.statusCode == 410 || e.message.toLowerCase().contains('expired');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isExpired
+                  ? 'This visit request has expired on the server.'
+                  : (e.message.isNotEmpty ? e.message : 'Failed to accept visit request.'),
+            ),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+      await _loadVisitsData();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to accept request: $e'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+      await _loadVisitsData();
+    }
   }
 
   Future<void> _onTodayVisitAction(TodayVisitItem item) async {
@@ -615,23 +1158,42 @@ class _VisitsScreenState extends State<VisitsScreen> {
       setState(() {
         final completedItem = _todayVisits.removeAt(index);
         
+        VisitsRepositoryImpl.markVisitCompleted(
+          completedItem.id,
+          appointmentId: completedItem.appointmentId,
+          requestId: completedItem.requestId,
+          orderId: completedItem.orderId,
+        );
+
         if (!_completedGroups.containsKey('This Week')) {
           _completedGroups['This Week'] = [];
         }
         
-        _completedGroups['This Week']!.insert(0, CompletedVisitItem(
+        final newComp = CompletedVisitItem(
           id: completedItem.id,
+          orderId: completedItem.displayOrderId,
+          appointmentId: completedItem.appointmentId,
+          requestId: completedItem.requestId,
           patientName: completedItem.patientName,
           dateTime: 'Today  •  Just now',
           duration: completedItem.distance,
-          doctorName: 'Dr. Assigned',
+          doctorName: completedItem.doctorName.isNotEmpty ? completedItem.doctorName : 'Doctor',
           address: completedItem.address,
           avatarUrl: completedItem.avatarUrl,
-        ));
+          scheduledDate: completedItem.scheduledDate,
+          isFamilyMember: completedItem.isFamilyMember,
+          patientAge: completedItem.patientAge,
+          patientGender: completedItem.patientGender,
+          relation: completedItem.relation,
+          bookedByName: completedItem.bookedByName,
+        );
+
+        _mergeOrAddCompleted(_completedGroups['This Week']!, newComp);
         
         // Auto switch to Completed tab
         _selectedTabIndex = 2;
       });
+      _switchTab(2);
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -650,6 +1212,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
       MaterialPageRoute(
         builder: (context) => UpdateVitalsScreen(
           appointmentId: item.id,
+          orderId: item.displayOrderId,
           patientName: item.patientName,
           avatarUrl: item.avatarUrl,
         ),
@@ -658,8 +1221,18 @@ class _VisitsScreenState extends State<VisitsScreen> {
 
     if (result != null && (result == true || result is PatientVitalsSummary)) {
       final PatientVitalsSummary? returnedSummary = result is PatientVitalsSummary ? result : null;
-      final idx = _todayVisits.indexWhere((v) => v.id == item.id);
+      final idx = _todayVisits.indexWhere((v) => _isSameVisit(
+        id1: v.id, apt1: v.appointmentId, req1: v.requestId, ord1: v.orderId,
+        id2: item.id, apt2: item.appointmentId, req2: item.requestId, ord2: item.orderId,
+      ));
       final completedItem = idx != -1 ? _todayVisits.removeAt(idx) : item;
+
+      VisitsRepositoryImpl.markVisitCompleted(
+        completedItem.id,
+        appointmentId: completedItem.appointmentId,
+        requestId: completedItem.requestId,
+        orderId: completedItem.orderId,
+      );
 
       if (returnedSummary != null) {
         VisitsRepositoryImpl.saveVitalsSummary(returnedSummary);
@@ -670,9 +1243,11 @@ class _VisitsScreenState extends State<VisitsScreen> {
           _completedGroups['This Week'] = [];
         }
 
-        _completedGroups['This Week']!.removeWhere((c) => c.id == completedItem.id);
-        _completedGroups['This Week']!.insert(0, CompletedVisitItem(
+        final newComp = CompletedVisitItem(
           id: completedItem.id,
+          orderId: completedItem.displayOrderId,
+          appointmentId: completedItem.appointmentId,
+          requestId: completedItem.requestId,
           patientName: completedItem.patientName,
           dateTime: 'Today  •  Just now',
           duration: completedItem.distance,
@@ -680,11 +1255,20 @@ class _VisitsScreenState extends State<VisitsScreen> {
           address: completedItem.address,
           avatarUrl: completedItem.avatarUrl,
           vitalsSummary: returnedSummary,
-        ));
+          scheduledDate: completedItem.scheduledDate,
+          isFamilyMember: completedItem.isFamilyMember || (returnedSummary?.isFamilyMember ?? false),
+          patientAge: completedItem.patientAge ?? (returnedSummary != null && returnedSummary.patientAge.isNotEmpty ? returnedSummary.patientAge : null),
+          patientGender: completedItem.patientGender ?? (returnedSummary != null && returnedSummary.patientGender.isNotEmpty ? returnedSummary.patientGender : null),
+          relation: completedItem.relation ?? (returnedSummary != null && returnedSummary.relation.isNotEmpty ? returnedSummary.relation : null),
+          bookedByName: completedItem.bookedByName,
+        );
+
+        _mergeOrAddCompleted(_completedGroups['This Week']!, newComp);
 
         // Auto switch to Completed tab
         _selectedTabIndex = 2;
       });
+      _switchTab(2);
 
       _visitsRepo.updateVisitStatus(item.id, 'COMPLETED');
 
@@ -784,39 +1368,46 @@ class _VisitsScreenState extends State<VisitsScreen> {
 
             const SizedBox(height: 4),
 
-            // Filter Tabs Bar (New Requests, Today, Completed)
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+            // Filter Tabs Bar (New Requests, Today, Completed) - Full width instant touch
+            Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(
+                  bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1),
+                ),
+              ),
               child: Row(
                 children: [
-                  _buildFilterTab(
-                    index: 0,
-                    label: 'New Requests',
-                    badge: '${_newRequests.length}',
-                    badgeBg: const Color(0xFFFF5C00),
-                    badgeIcon: null,
+                  Expanded(
+                    child: _buildFilterTab(
+                      index: 0,
+                      label: 'New Requests',
+                      badge: '${_newRequests.length}',
+                      badgeBg: const Color(0xFFFF5C00),
+                      badgeIcon: null,
+                    ),
                   ),
-                  const SizedBox(width: 16),
-                  _buildFilterTab(
-                    index: 1,
-                    label: 'Today',
-                    badge: '${_todayVisits.length}',
-                    badgeBg: const Color(0xFF0052FF),
-                    badgeIcon: null,
+                  Expanded(
+                    child: _buildFilterTab(
+                      index: 1,
+                      label: 'Today',
+                      badge: '${_todayVisits.length}',
+                      badgeBg: const Color(0xFF0052FF),
+                      badgeIcon: null,
+                    ),
                   ),
-                  const SizedBox(width: 16),
-                  _buildFilterTab(
-                    index: 2,
-                    label: 'Completed',
-                    badge: '${_completedGroups.values.fold(0, (sum, list) => sum + list.length)}',
-                    badgeBg: const Color(0xFF10B981),
-                    badgeIcon: null,
+                  Expanded(
+                    child: _buildFilterTab(
+                      index: 2,
+                      label: 'Completed',
+                      badge: '${_completedGroups.values.fold(0, (sum, list) => sum + list.length)}',
+                      badgeBg: const Color(0xFF10B981),
+                      badgeIcon: null,
+                    ),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1, color: Color(0xFFF1F5F9)),
 
             // Single Unified Search Bar for All Tabs
             if (_isSearching)
@@ -974,77 +1565,98 @@ class _VisitsScreenState extends State<VisitsScreen> {
   }) {
     final isSelected = _selectedTabIndex == index;
 
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedTabIndex = index;
-        });
-      },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8.0),
-            child: Row(
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                    color: isSelected ? const Color(0xFFFF5C00) : const Color(0xFF64748B),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _switchTab(index),
+        splashColor: const Color(0x15FF5C00),
+        highlightColor: const Color(0x0AFF5C00),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                        color: isSelected ? const Color(0xFFFF5C00) : const Color(0xFF64748B),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 6),
+                  const SizedBox(width: 5),
 
-                // Circle Badge Pill
-                Container(
-                  width: 20,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color: badgeBg,
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: badgeIcon != null
-                      ? Icon(badgeIcon, color: Colors.white, size: 12)
-                      : Text(
-                          badge,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                  // Circle / Pill Badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    constraints: const BoxConstraints(
+                      minWidth: 18,
+                      minHeight: 18,
+                    ),
+                    decoration: BoxDecoration(
+                      color: badgeBg,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    alignment: Alignment.center,
+                    child: badgeIcon != null
+                        ? Icon(badgeIcon, color: Colors.white, size: 11)
+                        : Text(
+                            badge,
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              height: 1.1,
+                            ),
                           ),
-                        ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // Active tab underline indicator bar
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+                height: 3,
+                width: isSelected ? 48 : 0,
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFFFF5C00) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(2),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          // Active tab underline indicator bar
-          Container(
-            height: 3,
-            width: isSelected ? 90 : 0,
-            decoration: BoxDecoration(
-              color: isSelected ? const Color(0xFFFF5C00) : Colors.transparent,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildTabBodyContent() {
-    switch (_selectedTabIndex) {
-      case 0:
-        return _buildNewRequestsView();
-      case 1:
-        return _buildTodayVisitsView();
-      case 2:
-        return _buildCompletedVisitsView();
-      default:
-        return _buildNewRequestsView();
-    }
+    return PageView(
+      controller: _pageController,
+      physics: const PageScrollPhysics(parent: BouncingScrollPhysics()),
+      onPageChanged: (index) {
+        if (_selectedTabIndex != index) {
+          setState(() {
+            _selectedTabIndex = index;
+          });
+        }
+      },
+      children: [
+        _KeepAliveTabWrapper(child: _buildNewRequestsView()),
+        _KeepAliveTabWrapper(child: _buildTodayVisitsView()),
+        _KeepAliveTabWrapper(child: _buildCompletedVisitsView()),
+      ],
+    );
   }
 
   // TAB 0: New Requests View
@@ -1085,10 +1697,18 @@ class _VisitsScreenState extends State<VisitsScreen> {
         ),
         Expanded(
           child: filtered.isEmpty
-              ? const Center(
-                  child: Text(
-                    'No matching requests found',
-                    style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+              ? LayoutBuilder(
+                  builder: (context, constraints) => SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                      child: const Center(
+                        child: Text(
+                          'No matching requests found',
+                          style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+                        ),
+                      ),
+                    ),
                   ),
                 )
               : ListView.separated(
@@ -1148,17 +1768,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                               border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
                             ),
                             child: ClipOval(
-                              child: Image.network(
-                                item.avatarUrl,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return const Icon(
-                                    Icons.person_rounded,
-                                    color: Color(0xFF64748B),
-                                    size: 28,
-                                  );
-                                },
-                              ),
+                              child: _buildPatientAvatarWidget(item.avatarUrl, item.patientName, 56),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -1166,14 +1776,82 @@ class _VisitsScreenState extends State<VisitsScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        item.patientName,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF0F172A),
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    if (item.isFamilyMember)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFEFF6FF),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: const Color(0xFFBFDBFE)),
+                                        ),
+                                        child: Text(
+                                          item.relation != null && item.relation!.isNotEmpty && item.relation != 'Family Member'
+                                              ? item.relation!
+                                              : 'Family Member',
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF2563EB),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
                                 Text(
-                                  item.patientName,
+                                  formatDemographics(
+                                    gender: item.patientGender,
+                                    age: item.patientAge,
+                                    isFamilyMember: item.isFamilyMember,
+                                    bookedByName: item.bookedByName,
+                                  ),
                                   style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF0F172A),
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF64748B),
                                   ),
                                 ),
+                                if (item.displayOrderId.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.tag_rounded, size: 11, color: Color(0xFF64748B)),
+                                        const SizedBox(width: 3),
+                                        Text(
+                                          'Order ID: ${item.displayOrderId}',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF334155),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                                 const SizedBox(height: 4),
                                 GestureDetector(
                                   onTap: () => _openGoogleMaps(item.latitude, item.longitude, item.address),
@@ -1224,132 +1902,121 @@ class _VisitsScreenState extends State<VisitsScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          // Phone Call Circle Button
-                          GestureDetector(
-                            onTap: () => _makePhoneCall(item.phoneNumber),
-                            child: Container(
-                              width: 42,
-                              height: 42,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFF4ED),
-                                shape: BoxShape.circle,
-                                border: Border.all(color: const Color(0xFFFFEDD5)),
-                              ),
-                              child: const Icon(
-                                Icons.phone_rounded,
-                                color: Color(0xFFFF8A00),
-                                size: 20,
-                              ),
-                            ),
-                          ),
                         ],
                       ),
 
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
 
-                      // Middle Info Row: Service Tag (Left) + Date/Time (Right)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      // Service Tags & Preferences
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
                         children: [
-                          // Service Tag Pill
-                          Flexible(
-                            child: Wrap(
-                              spacing: 6,
-                              runSpacing: 4,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFFF3EC),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: const Color(0xFFFFD4BE), width: 0.8),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(
-                                        Icons.link_rounded,
-                                        size: 13,
-                                        color: Color(0xFFFF5C00),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Flexible(
-                                        child: Text(
-                                          item.serviceTag,
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFFFF5C00),
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                if (item.femaleNursePreferred)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFDF2F8),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: const Color(0xFFFBCFE8), width: 0.8),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: const [
-                                        Icon(
-                                          Icons.female_rounded,
-                                          size: 13,
-                                          color: Color(0xFFDB2777),
-                                        ),
-                                        SizedBox(width: 3),
-                                        Text(
-                                          'Female Nurse Preferred',
-                                          style: TextStyle(
-                                            fontSize: 10.5,
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFFDB2777),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                              ],
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF3EC),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFFFD4BE), width: 0.8),
                             ),
-                          ),
-
-                          const SizedBox(width: 8),
-
-                          // Date/Time
-                          Flexible(
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 const Icon(
-                                  Icons.calendar_today_outlined,
-                                  size: 14,
-                                  color: Color(0xFF64748B),
+                                  Icons.link_rounded,
+                                  size: 13,
+                                  color: Color(0xFFFF5C00),
                                 ),
                                 const SizedBox(width: 4),
-                                Flexible(
-                                  child: Text(
-                                    item.time,
-                                    style: const TextStyle(
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF64748B),
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                Text(
+                                  item.serviceTag,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFFFF5C00),
                                   ),
                                 ),
                               ],
                             ),
                           ),
+                          if (item.femaleNursePreferred)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFDF2F8),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFFFBCFE8), width: 0.8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(
+                                    Icons.female_rounded,
+                                    size: 13,
+                                    color: Color(0xFFDB2777),
+                                  ),
+                                  SizedBox(width: 3),
+                                  Text(
+                                    'Female Nurse Preferred',
+                                    style: TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFFDB2777),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                         ],
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      // Appointment Date Container: dddd, dd-mm-year
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.calendar_month_rounded,
+                              size: 14,
+                              color: Color(0xFF0052FF),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                item.formattedAppointmentDate,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF0F172A),
+                                ),
+                              ),
+                            ),
+                            if (item.time.isNotEmpty && !item.time.toLowerCase().contains('today') && !item.time.toLowerCase().contains('scheduled')) ...[
+                              const SizedBox(width: 6),
+                              const Icon(
+                                Icons.access_time_rounded,
+                                size: 13,
+                                color: Color(0xFF64748B),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                item.time,
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
 
                       const SizedBox(height: 14),
@@ -1442,6 +2109,8 @@ class _VisitsScreenState extends State<VisitsScreen> {
              item.address.toLowerCase().contains(q);
     }).toList();
 
+    _scrollToTargetIfAvailable();
+
     return Column(
       children: [
         Padding(
@@ -1470,10 +2139,18 @@ class _VisitsScreenState extends State<VisitsScreen> {
         ),
         Expanded(
           child: filtered.isEmpty
-              ? const Center(
-                  child: Text(
-                    'No matching visits found',
-                    style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+              ? LayoutBuilder(
+                  builder: (context, constraints) => SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                      child: const Center(
+                        child: Text(
+                          'No matching visits found',
+                          style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+                        ),
+                      ),
+                    ),
                   ),
                 )
               : ListView.separated(
@@ -1493,10 +2170,15 @@ class _VisitsScreenState extends State<VisitsScreen> {
   }
 
   Widget _buildTodayVisitCard(TodayVisitItem item) {
-    final bool isHighlighted = _isHighlightVisible && _highlightedPatientName != null &&
-        item.patientName.toLowerCase().contains(_highlightedPatientName!.toLowerCase());
+    final bool isExactTarget = (_highlightedVisitId != null && _highlightedVisitId!.isNotEmpty && item.id == _highlightedVisitId) ||
+        (_highlightedPatientName != null &&
+            _highlightedPatientName!.isNotEmpty &&
+            item.patientName.trim().toLowerCase() == _highlightedPatientName!.trim().toLowerCase());
+
+    final bool isHighlighted = _isHighlightVisible && isExactTarget;
 
     return AnimatedContainer(
+      key: isExactTarget ? _targetCardKey : null,
       duration: const Duration(milliseconds: 1200),
       curve: Curves.easeOut,
       decoration: BoxDecoration(
@@ -1553,17 +2235,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                               border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
                             ),
                             child: ClipOval(
-                              child: Image.network(
-                                item.avatarUrl,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return const Icon(
-                                    Icons.person_rounded,
-                                    color: Color(0xFF64748B),
-                                    size: 28,
-                                  );
-                                },
-                              ),
+                              child: _buildPatientAvatarWidget(item.avatarUrl, item.patientName, 52),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -1571,23 +2243,117 @@ class _VisitsScreenState extends State<VisitsScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  item.patientName,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF0F172A),
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        item.patientName,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF0F172A),
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    if (item.isFamilyMember)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFEFF6FF),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: const Color(0xFFBFDBFE)),
+                                        ),
+                                        child: Text(
+                                          item.relation != null && item.relation!.isNotEmpty && item.relation != 'Family Member'
+                                              ? item.relation!
+                                              : 'Family Member',
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF2563EB),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 2),
                                 Text(
-                                  item.timeInterval,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: item.timeColor,
+                                  formatDemographics(
+                                    gender: item.patientGender,
+                                    age: item.patientAge,
+                                    isFamilyMember: item.isFamilyMember,
+                                    bookedByName: item.bookedByName,
+                                  ),
+                                  style: const TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                                if (item.displayOrderId.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.tag_rounded, size: 11, color: Color(0xFF64748B)),
+                                        const SizedBox(width: 3),
+                                        Text(
+                                          'Order ID: ${item.displayOrderId}',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF334155),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 5),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEFF6FF),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: const Color(0xFFDBEAFE)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.calendar_month_rounded, size: 12, color: Color(0xFF0052FF)),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        item.formattedAppointmentDate,
+                                        style: const TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF0052FF),
+                                        ),
+                                      ),
+                                      if (item.timeInterval.isNotEmpty && !item.timeInterval.toLowerCase().contains('today') && !item.timeInterval.toLowerCase().contains('scheduled')) ...[
+                                        const SizedBox(width: 5),
+                                        const Text('•', style: TextStyle(color: Color(0xFF93C5FD))),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                          item.timeInterval,
+                                          style: const TextStyle(
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF1E40AF),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                 ),
                               ],
@@ -1796,15 +2562,24 @@ class _VisitsScreenState extends State<VisitsScreen> {
     }));
 
     if (!hasMatches) {
-      return const Center(
-        child: Text(
-          'No matching completed visits found',
-          style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+      return LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: const Center(
+              child: Text(
+                'No matching completed visits found',
+                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+              ),
+            ),
+          ),
         ),
       );
     }
 
     return ListView(
+      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       children: _completedGroups.entries.map((group) {
         final filteredItems = group.value.where((item) {
@@ -1887,17 +2662,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                               border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
                             ),
                             child: ClipOval(
-                              child: Image.network(
-                                item.avatarUrl,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return const Icon(
-                                    Icons.person_rounded,
-                                    color: Color(0xFF64748B),
-                                    size: 28,
-                                  );
-                                },
-                              ),
+                              child: _buildPatientAvatarWidget(item.avatarUrl, item.patientName, 52),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -1905,23 +2670,117 @@ class _VisitsScreenState extends State<VisitsScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  item.patientName,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF0F172A),
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        item.patientName,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF0F172A),
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    if (item.isFamilyMember)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFEFF6FF),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: const Color(0xFFBFDBFE)),
+                                        ),
+                                        child: Text(
+                                          item.relation != null && item.relation!.isNotEmpty && item.relation != 'Family Member'
+                                              ? item.relation!
+                                              : 'Family Member',
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF2563EB),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                                const SizedBox(height: 3),
+                                const SizedBox(height: 2),
                                 Text(
-                                  item.dateTime,
+                                  formatDemographics(
+                                    gender: item.patientGender,
+                                    age: item.patientAge,
+                                    isFamilyMember: item.isFamilyMember,
+                                    bookedByName: item.bookedByName,
+                                  ),
                                   style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF10B981),
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                                if (item.displayOrderId.isNotEmpty) ...[
+                                  const SizedBox(height: 3),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.tag_rounded, size: 11, color: Color(0xFF64748B)),
+                                        const SizedBox(width: 3),
+                                        Text(
+                                          'Order ID: ${item.displayOrderId}',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF334155),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFECFDF5),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: const Color(0xFFA7F3D0)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.calendar_month_rounded, size: 12, color: Color(0xFF059669)),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        item.formattedAppointmentDate,
+                                        style: const TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF059669),
+                                        ),
+                                      ),
+                                      if (item.dateTime.isNotEmpty && !item.dateTime.toLowerCase().contains('today') && !item.dateTime.toLowerCase().contains('scheduled')) ...[
+                                        const SizedBox(width: 5),
+                                        const Text('•', style: TextStyle(color: Color(0xFF6EE7B7))),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                          item.dateTime,
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF065F46),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                 ),
                               ],
@@ -2030,5 +2889,97 @@ class _VisitsScreenState extends State<VisitsScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildPatientAvatarWidget(String avatarUrl, String patientName, double size) {
+    final clean = avatarUrl.trim();
+    if (clean.isNotEmpty && clean != 'null' && clean != 'undefined') {
+      // 1. Data URI / Base64 image
+      if (clean.startsWith('data:image/')) {
+        try {
+          final commaIdx = clean.indexOf(',');
+          final base64Str = commaIdx != -1 ? clean.substring(commaIdx + 1) : clean;
+          final bytes = base64Decode(base64Str.replaceAll(RegExp(r'\s+'), ''));
+          return Image.memory(
+            bytes,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => _buildPatientFallbackAvatar(size),
+          );
+        } catch (_) {}
+      }
+
+      // 2. Local File
+      if (clean.startsWith('file://') ||
+          (!clean.startsWith('http://') &&
+              !clean.startsWith('https://') &&
+              File(clean.replaceFirst('file://', '')).existsSync())) {
+        try {
+          final filePath = clean.replaceFirst('file://', '');
+          final file = File(filePath);
+          if (file.existsSync()) {
+            return Image.file(
+              file,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => _buildPatientFallbackAvatar(size),
+            );
+          }
+        } catch (_) {}
+      }
+
+      // 3. Network URL (http/https or relative endpoint formatted with baseUrl)
+      final fullUrl = formatImageUrl(clean);
+      if (fullUrl.startsWith('http://') || fullUrl.startsWith('https://')) {
+        return Image.network(
+          fullUrl,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return _buildPatientFallbackAvatar(size);
+          },
+        );
+      }
+    }
+
+    return _buildPatientFallbackAvatar(size);
+  }
+
+  Widget _buildPatientFallbackAvatar(double size) {
+    return Container(
+      width: size,
+      height: size,
+      color: const Color(0xFFF1F5F9),
+      alignment: Alignment.center,
+      child: Icon(
+        Icons.person_rounded,
+        color: const Color(0xFF94A3B8),
+        size: size * 0.55,
+      ),
+    );
+  }
+}
+
+/// Helper wrapper that preserves the tab's state and scroll position across swipes
+class _KeepAliveTabWrapper extends StatefulWidget {
+  final Widget child;
+  const _KeepAliveTabWrapper({required this.child});
+
+  @override
+  State<_KeepAliveTabWrapper> createState() => _KeepAliveTabWrapperState();
+}
+
+class _KeepAliveTabWrapperState extends State<_KeepAliveTabWrapper>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }

@@ -202,6 +202,46 @@ class _SearchScreenState extends State<SearchScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      const SizedBox(height: 2),
+                      Text(
+                        formatDemographics(
+                          gender: item.patientGender,
+                          age: item.patientAge,
+                          isFamilyMember: item.isFamilyMember,
+                          bookedByName: item.bookedByName,
+                        ),
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                      if (item.displayOrderId.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.tag_rounded, size: 10.5, color: Color(0xFF64748B)),
+                              const SizedBox(width: 3),
+                              Text(
+                                'Order ID: ${item.displayOrderId}',
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF334155),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 3),
                       Text(
                         '${item.serviceTag} • ${item.time}',

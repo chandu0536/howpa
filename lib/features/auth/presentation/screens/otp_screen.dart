@@ -5,6 +5,9 @@ import 'package:howpa_nurse/core/network/api_exceptions.dart';
 import 'package:howpa_nurse/features/auth/data/models/auth_models.dart';
 import 'package:howpa_nurse/features/auth/data/repositories/auth_repository.dart';
 import 'package:howpa_nurse/features/home/presentation/screens/nurse_dashboard_screen.dart';
+import 'package:howpa_nurse/core/services/user_profile_manager.dart';
+import 'package:howpa_nurse/core/services/booking_notification_manager.dart';
+import 'package:howpa_nurse/features/visits/data/repositories/visits_repository.dart';
 import 'phone_number_screen.dart';
 import 'registration_step1_screen.dart';
 import 'registration_step2_screen.dart';
@@ -155,9 +158,38 @@ class _OtpScreenState extends State<OtpScreen> {
           ),
         );
 
+        // Reset and isolate session state for this verified phone number
+        UserProfileManager.instance.reset();
+        VisitsRepositoryImpl.clearAllCache();
+        BookingNotificationManager.clearAll();
+
+        UserProfileManager.instance.updateProfileDetails(phoneNumber: fullPhone);
+
         final user = response.nurse;
+        if (user != null &&
+            user.fullName != null &&
+            user.fullName!.trim().isNotEmpty &&
+            user.fullName != 'Nurse') {
+          UserProfileManager.instance.updateProfileDetails(
+            nurseId: user.id,
+            fullName: user.fullName,
+            phoneNumber: user.phone.isNotEmpty ? user.phone : fullPhone,
+            email: user.email,
+            dob: user.dob,
+            gender: user.gender,
+            experience: user.experienceYears?.toString(),
+            specialization: user.specialization,
+            location: user.address,
+            area: user.city,
+            district: user.city,
+            latitude: user.latitude,
+            longitude: user.longitude,
+            profilePhotoUrl: user.profilePhotoUrl,
+          );
+        }
+
         final isApproved = user?.isApproved ?? false;
-        final hasFullName = user?.fullName != null && user!.fullName!.trim().isNotEmpty;
+        final hasFullName = user?.fullName != null && user!.fullName!.trim().isNotEmpty && user.fullName != 'Nurse';
         final isProfileCompleted = (user?.isProfileCompleted ?? false) && hasFullName;
         final isKycSubmitted = user?.isKycSubmitted ?? false;
 

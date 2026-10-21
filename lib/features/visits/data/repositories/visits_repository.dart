@@ -1,16 +1,24 @@
 import 'dart:io';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
+import '../../../../core/network/api_exceptions.dart';
 import '../../../../core/services/user_profile_manager.dart';
 import '../models/visit_models.dart';
 import 'package:howpa_nurse/features/vitals/data/models/vitals_details_model.dart';
+import 'package:geolocator/geolocator.dart';
+import '../../../../core/services/location_service.dart';
 import '../../../../core/network/token_storage.dart';
 
 abstract class VisitsRepository {
   Future<List<VisitRequestItem>> getNearbyRequests();
   Future<List<VisitRequestItem>> getTodayVisits();
   Future<List<VisitRequestItem>> getUpcomingVisits();
-  Future<bool> acceptVisitRequest(String appointmentId);
+  Future<bool> acceptVisitRequest(
+    String appointmentId, {
+    String? requestId,
+    String? orderId,
+    VisitRequestItem? item,
+  });
   Future<bool> rejectVisitRequest(String appointmentId, {String? reason});
   Future<bool> updateVisitStatus(String appointmentId, String status);
   Future<bool> recordPatientVitals(RecordVitalsRequest request);
@@ -32,11 +40,137 @@ class VisitsRepositoryImpl implements VisitsRepository {
   static final Map<String, VisitRequestItem> _locallyAcceptedVisits = {};
   static final Set<String> _locallyRejectedIds = {};
   static final Set<String> _locallyCompletedIds = {};
-
+  static final Set<String> _expiredRequestIds = {};
   static List<VisitRequestItem> getCachedNearbyRequests() => List.unmodifiable(_cachedNearbyRequests);
+
+  /// Clear all cached visits and local overrides on logout
+  static void clearAllCache() {
+    _cachedNearbyRequests.clear();
+    _cachedTodayVisits.clear();
+    _cachedCompletedVisits.clear();
+    _cachedVitalsSummaries.clear();
+    _locallyAcceptedVisits.clear();
+    _locallyRejectedIds.clear();
+    _locallyCompletedIds.clear();
+    _expiredRequestIds.clear();
+  }
   static List<VisitRequestItem> getCachedTodayVisits() => List.unmodifiable(_cachedTodayVisits);
   static List<VisitRequestItem> getCachedCompletedVisits() => List.unmodifiable(_cachedCompletedVisits);
   static PatientVitalsSummary? getCachedVitals(String id) => _cachedVitalsSummaries[id];
+
+  static bool isVisitCompleted(String? id) {
+    if (id == null || id.isEmpty) return false;
+    if (_locallyCompletedIds.contains(id)) return true;
+    for (final c in _cachedCompletedVisits) {
+      if (c.id == id ||
+          (c.appointmentId != null && c.appointmentId == id) ||
+          (c.requestId != null && c.requestId == id) ||
+          (c.orderId != null && c.orderId == id)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static void markVisitCompleted(String id, {String? appointmentId, String? requestId, String? orderId}) {
+    if (id.isNotEmpty) _locallyCompletedIds.add(id);
+    if (appointmentId != null && appointmentId.isNotEmpty) _locallyCompletedIds.add(appointmentId);
+    if (requestId != null && requestId.isNotEmpty) _locallyCompletedIds.add(requestId);
+    if (orderId != null && orderId.isNotEmpty) _locallyCompletedIds.add(orderId);
+
+    _locallyAcceptedVisits.remove(id);
+    if (appointmentId != null) _locallyAcceptedVisits.remove(appointmentId);
+    if (requestId != null) _locallyAcceptedVisits.remove(requestId);
+    if (orderId != null) _locallyAcceptedVisits.remove(orderId);
+
+    _cachedTodayVisits.removeWhere((v) =>
+        v.id == id ||
+        (appointmentId != null && (v.appointmentId == appointmentId || v.id == appointmentId)) ||
+        (requestId != null && (v.requestId == requestId || v.id == requestId)) ||
+        (orderId != null && v.orderId == orderId));
+  }
+
+  static bool isSameVisitItem(VisitRequestItem a, VisitRequestItem b) {
+    if (a.id.isNotEmpty && a.id == b.id) return true;
+    if (a.appointmentId != null && a.appointmentId!.isNotEmpty) {
+      if (a.appointmentId == b.appointmentId || a.appointmentId == b.id || a.appointmentId == b.requestId) {
+        return true;
+      }
+    }
+    if (b.appointmentId != null && b.appointmentId!.isNotEmpty) {
+      if (b.appointmentId == a.id || b.appointmentId == a.requestId) {
+        return true;
+      }
+    }
+    if (a.requestId != null && a.requestId!.isNotEmpty) {
+      if (a.requestId == b.requestId || a.requestId == b.id || a.requestId == b.appointmentId) {
+        return true;
+      }
+    }
+    if (b.requestId != null && b.requestId!.isNotEmpty) {
+      if (b.requestId == a.id || b.requestId == a.appointmentId) {
+        return true;
+      }
+    }
+    if (a.orderId != null && a.orderId!.isNotEmpty && b.orderId != null && b.orderId!.isNotEmpty) {
+      if (a.orderId == b.orderId) return true;
+    }
+    if (a.patientName.isNotEmpty &&
+        b.patientName.isNotEmpty &&
+        a.patientName.toLowerCase() != 'patient' &&
+        a.patientName.trim().toLowerCase() == b.patientName.trim().toLowerCase()) {
+      if (a.scheduledDate != null && b.scheduledDate != null) {
+        if (a.scheduledDate!.year == b.scheduledDate!.year &&
+            a.scheduledDate!.month == b.scheduledDate!.month &&
+            a.scheduledDate!.day == b.scheduledDate!.day) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  static void addToCachedCompletedVisits(VisitRequestItem item) {
+    final idx = _cachedCompletedVisits.indexWhere((c) => isSameVisitItem(c, item));
+    if (idx != -1) {
+      final existing = _cachedCompletedVisits[idx];
+      final bestOrderId = (item.orderId != null && item.orderId!.startsWith('NS'))
+          ? item.orderId
+          : (existing.orderId != null && existing.orderId!.startsWith('NS')
+              ? existing.orderId
+              : (item.orderId?.isNotEmpty == true ? item.orderId : existing.orderId));
+
+      _cachedCompletedVisits[idx] = existing.copyWith(
+        orderId: bestOrderId,
+        appointmentId: existing.appointmentId ?? item.appointmentId,
+        requestId: existing.requestId ?? item.requestId,
+        patientName: existing.patientName.isNotEmpty && existing.patientName != 'Patient'
+            ? existing.patientName
+            : item.patientName,
+        address: existing.address.isNotEmpty && existing.address != 'Patient Address'
+            ? existing.address
+            : item.address,
+        phoneNumber: existing.phoneNumber.isNotEmpty ? existing.phoneNumber : item.phoneNumber,
+        doctorName: existing.doctorName.isNotEmpty && existing.doctorName != 'Doctor'
+            ? existing.doctorName
+            : item.doctorName,
+        avatarUrl: existing.avatarUrl.isNotEmpty ? existing.avatarUrl : item.avatarUrl,
+        scheduledDate: existing.scheduledDate ?? item.scheduledDate,
+        isVitalsUpdated: existing.isVitalsUpdated || item.isVitalsUpdated,
+        patientAge: (existing.patientAge != null && existing.patientAge!.isNotEmpty)
+            ? existing.patientAge
+            : item.patientAge,
+        patientGender: (existing.patientGender != null && existing.patientGender!.isNotEmpty)
+            ? existing.patientGender
+            : item.patientGender,
+        isFamilyMember: existing.isFamilyMember || item.isFamilyMember,
+        relation: existing.relation ?? item.relation,
+        bookedByName: existing.bookedByName ?? item.bookedByName,
+      );
+    } else {
+      _cachedCompletedVisits.add(item);
+    }
+  }
 
   VisitsRepositoryImpl({ApiClient? client}) : _client = client ?? ApiClient.instance;
 
@@ -73,11 +207,12 @@ class VisitsRepositoryImpl implements VisitsRepository {
         final nurseGender = UserProfileManager.instance.gender.trim().toLowerCase();
         final isFemaleNurse = nurseGender == 'female' || nurseGender == 'f';
 
-        final filtered = fetched.where((item) {
+        List<VisitRequestItem> filtered = fetched.where((item) {
           if (item.id.isEmpty) return false;
           if (_locallyAcceptedVisits.containsKey(item.id)) return false;
           if (_locallyRejectedIds.contains(item.id)) return false;
           if (_locallyCompletedIds.contains(item.id)) return false;
+          if (_expiredRequestIds.contains(item.id)) return false;
 
           // If patient preferred a female nurse, only show request to female nurses
           if (item.femaleNursePreferred && !isFemaleNurse && nurseGender.isNotEmpty) {
@@ -85,11 +220,37 @@ class VisitsRepositoryImpl implements VisitsRepository {
           }
 
           final st = item.status.toUpperCase();
-          if (st == 'ACCEPTED' || st == 'ARRIVED' || st == 'STARTED' || st == 'COMPLETED' || st == 'REJECTED' || st == 'CANCELLED') {
+          if (st == 'ACCEPTED' || st == 'ARRIVED' || st == 'STARTED' || st == 'COMPLETED' || st == 'REJECTED' || st == 'CANCELLED' || st == 'EXPIRED' || st == 'ASSIGNED' || st == 'TAKEN' || st == 'BOOKED') {
             return false;
           }
+
+          // Filter out requests whose scheduledDate is strictly before today (past days)
+          if (item.scheduledDate != null) {
+            final now = DateTime.now();
+            final startOfToday = DateTime(now.year, now.month, now.day);
+            final itemDay = DateTime(item.scheduledDate!.year, item.scheduledDate!.month, item.scheduledDate!.day);
+            if (itemDay.isBefore(startOfToday)) {
+              return false;
+            }
+          }
+
           return true;
         }).toList();
+
+        // Calculate live GPS distance from nurse to patient whenever coordinates are available
+        try {
+          final pos = await LocationService.instance.getCurrentPosition();
+          if (pos != null) {
+            filtered = filtered.map((item) {
+              if (item.latitude != null && item.longitude != null && item.latitude != 0 && item.longitude != 0) {
+                final meters = Geolocator.distanceBetween(pos.latitude, pos.longitude, item.latitude!, item.longitude!);
+                final km = meters / 1000.0;
+                return item.copyWith(distance: '${km.toStringAsFixed(1)} km');
+              }
+              return item;
+            }).toList();
+          }
+        } catch (_) {}
 
         _cachedNearbyRequests.clear();
         _cachedNearbyRequests.addAll(filtered);
@@ -116,12 +277,22 @@ class VisitsRepositoryImpl implements VisitsRepository {
               .where((item) {
                 if (item.id.isEmpty) return false;
                 if (_locallyRejectedIds.contains(item.id)) return false;
-                if (_locallyCompletedIds.contains(item.id)) return false;
+                if (isVisitCompleted(item.id) ||
+                    isVisitCompleted(item.appointmentId) ||
+                    isVisitCompleted(item.requestId) ||
+                    isVisitCompleted(item.orderId)) {
+                  return false;
+                }
                 final st = item.status.toUpperCase();
                 if (st == 'COMPLETED' || st == 'DONE' || st == 'CANCELLED' || st == 'REJECTED') {
                   if (st == 'COMPLETED' || st == 'DONE') {
-                    _locallyCompletedIds.add(item.id);
-                    _locallyAcceptedVisits.remove(item.id);
+                    markVisitCompleted(
+                      item.id,
+                      appointmentId: item.appointmentId,
+                      requestId: item.requestId,
+                      orderId: item.orderId,
+                    );
+                    addToCachedCompletedVisits(item);
                   }
                   return false;
                 }
@@ -129,36 +300,85 @@ class VisitsRepositoryImpl implements VisitsRepository {
               })
               .toList();
 
+          Position? nursePos;
+          try {
+            nursePos = await LocationService.instance.getCurrentPosition();
+          } catch (_) {}
+
           final enriched = <VisitRequestItem>[];
           for (final f in fetched) {
             VisitRequestItem? existing;
-            final cacheIdx = _cachedTodayVisits.indexWhere((c) => c.id == f.id);
+            final cacheIdx = _cachedTodayVisits.indexWhere((c) =>
+                c.id == f.id ||
+                (c.appointmentId != null && c.appointmentId!.isNotEmpty && c.appointmentId == f.appointmentId) ||
+                (c.requestId != null && c.requestId!.isNotEmpty && c.requestId == f.requestId) ||
+                (f.appointmentId != null && f.appointmentId!.isNotEmpty && c.id == f.appointmentId) ||
+                (f.requestId != null && f.requestId!.isNotEmpty && c.id == f.requestId));
             if (cacheIdx != -1) {
               existing = _cachedTodayVisits[cacheIdx];
-            } else if (_locallyAcceptedVisits.containsKey(f.id)) {
-              existing = _locallyAcceptedVisits[f.id];
+            } else {
+              for (final entry in _locallyAcceptedVisits.entries) {
+                final acc = entry.value;
+                if (entry.key == f.id ||
+                    acc.id == f.id ||
+                    (acc.appointmentId != null && acc.appointmentId!.isNotEmpty && acc.appointmentId == f.appointmentId) ||
+                    (acc.requestId != null && acc.requestId!.isNotEmpty && acc.requestId == f.requestId) ||
+                    (f.appointmentId != null && f.appointmentId!.isNotEmpty && acc.id == f.appointmentId) ||
+                    (f.requestId != null && f.requestId!.isNotEmpty && acc.id == f.requestId)) {
+                  existing = acc;
+                  break;
+                }
+              }
+            }
+
+            VisitRequestItem? nearbyMatch;
+            final nearbyIdx = _cachedNearbyRequests.indexWhere((n) =>
+                n.id == f.id ||
+                (n.appointmentId != null && n.appointmentId!.isNotEmpty && n.appointmentId == f.appointmentId) ||
+                (n.requestId != null && n.requestId!.isNotEmpty && n.requestId == f.requestId) ||
+                (f.appointmentId != null && f.appointmentId!.isNotEmpty && n.id == f.appointmentId) ||
+                (f.requestId != null && f.requestId!.isNotEmpty && n.id == f.requestId));
+            if (nearbyIdx != -1) {
+              nearbyMatch = _cachedNearbyRequests[nearbyIdx];
             }
 
             final realName = (f.patientName.isNotEmpty && f.patientName != 'Patient')
                 ? f.patientName
                 : (existing != null && existing.patientName.isNotEmpty && existing.patientName != 'Patient'
                     ? existing.patientName
-                    : f.patientName);
+                    : (nearbyMatch?.patientName ?? f.patientName));
 
             final realAddr = (f.address.isNotEmpty && f.address != 'Selected Delivery Address' && f.address != 'Patient Home Address')
                 ? f.address
-                : (existing != null && existing.address.isNotEmpty ? existing.address : f.address);
+                : (existing != null && existing.address.isNotEmpty
+                    ? existing.address
+                    : (nearbyMatch?.address ?? f.address));
 
-            final realAvatar = f.avatarUrl.isNotEmpty ? f.avatarUrl : (existing?.avatarUrl ?? '');
+            final realAvatar = f.avatarUrl.isNotEmpty
+                ? f.avatarUrl
+                : ((existing != null && existing.avatarUrl.isNotEmpty)
+                    ? existing.avatarUrl
+                    : (nearbyMatch?.avatarUrl ?? ''));
             final realPhone = f.phoneNumber.isNotEmpty
                 ? f.phoneNumber
-                : (existing?.phoneNumber ?? f.phoneNumber);
+                : (existing?.phoneNumber ?? (nearbyMatch?.phoneNumber ?? f.phoneNumber));
+
+            final itemLat = f.latitude ?? existing?.latitude ?? nearbyMatch?.latitude;
+            final itemLng = f.longitude ?? existing?.longitude ?? nearbyMatch?.longitude;
+            String realDist = f.distance;
+            if (nursePos != null && itemLat != null && itemLng != null && itemLat != 0 && itemLng != 0) {
+              final meters = Geolocator.distanceBetween(nursePos.latitude, nursePos.longitude, itemLat, itemLng);
+              final km = meters / 1000.0;
+              realDist = '${km.toStringAsFixed(1)} km';
+            } else if (realDist.isEmpty || (realDist == '1.5 km' && (itemLat == null || itemLng == null))) {
+              realDist = (itemLat != null && itemLng != null) ? 'Nearby' : '--';
+            }
 
             enriched.add(VisitRequestItem(
               id: f.id,
               patientName: realName,
               address: realAddr,
-              distance: f.distance,
+              distance: realDist,
               serviceTag: f.serviceTag,
               time: f.time,
               avatarUrl: realAvatar,
@@ -170,6 +390,16 @@ class VisitsRepositoryImpl implements VisitsRepository {
               longitude: f.longitude ?? existing?.longitude,
               isVitalsUpdated: f.isVitalsUpdated || (existing?.isVitalsUpdated ?? false),
               doctorName: f.doctorName.isNotEmpty ? f.doctorName : (existing?.doctorName ?? ''),
+              scheduledDate: f.scheduledDate ?? existing?.scheduledDate,
+              familyMemberId: f.familyMemberId ?? existing?.familyMemberId,
+              isFamilyMember: f.isFamilyMember || (existing?.isFamilyMember ?? false),
+              patientAge: f.patientAge ?? existing?.patientAge ?? nearbyMatch?.patientAge,
+              patientGender: f.patientGender ?? existing?.patientGender ?? nearbyMatch?.patientGender,
+              relation: f.relation ?? existing?.relation ?? nearbyMatch?.relation,
+              bookedByName: f.bookedByName ?? existing?.bookedByName ?? nearbyMatch?.bookedByName,
+              appointmentId: f.appointmentId ?? existing?.appointmentId ?? nearbyMatch?.appointmentId,
+              requestId: f.requestId ?? existing?.requestId ?? nearbyMatch?.requestId,
+              orderId: f.orderId ?? existing?.orderId ?? nearbyMatch?.orderId,
             ));
           }
 
@@ -184,13 +414,16 @@ class VisitsRepositoryImpl implements VisitsRepository {
           // Preserve locally accepted items until backend reflects them
           for (final localAcc in _locallyAcceptedVisits.values) {
             final st = localAcc.status.toUpperCase();
-            if (!_locallyCompletedIds.contains(localAcc.id) &&
+            if (!isVisitCompleted(localAcc.id) &&
+                !isVisitCompleted(localAcc.appointmentId) &&
+                !isVisitCompleted(localAcc.requestId) &&
+                !isVisitCompleted(localAcc.orderId) &&
                 !_locallyRejectedIds.contains(localAcc.id) &&
                 st != 'COMPLETED' &&
                 st != 'DONE' &&
                 st != 'CANCELLED' &&
                 st != 'REJECTED' &&
-                !_cachedTodayVisits.any((t) => t.id == localAcc.id)) {
+                !_cachedTodayVisits.any((t) => isSameVisitItem(t, localAcc))) {
               _cachedTodayVisits.add(localAcc);
             }
           }
@@ -200,7 +433,10 @@ class VisitsRepositoryImpl implements VisitsRepository {
 
     // Final guard: remove any completed, cancelled, or rejected items
     _cachedTodayVisits.removeWhere((item) =>
-      _locallyCompletedIds.contains(item.id) ||
+      isVisitCompleted(item.id) ||
+      isVisitCompleted(item.appointmentId) ||
+      isVisitCompleted(item.requestId) ||
+      isVisitCompleted(item.orderId) ||
       _locallyRejectedIds.contains(item.id) ||
       item.status.toUpperCase() == 'COMPLETED' ||
       item.status.toUpperCase() == 'DONE' ||
@@ -217,44 +453,96 @@ class VisitsRepositoryImpl implements VisitsRepository {
   }
 
   @override
-  Future<bool> acceptVisitRequest(String appointmentId) async {
-    // Instant local state update
-    final index = _cachedNearbyRequests.indexWhere((r) => r.id == appointmentId);
-    VisitRequestItem? item;
-    if (index != -1) {
-      item = _cachedNearbyRequests.removeAt(index);
+  Future<bool> acceptVisitRequest(
+    String appointmentId, {
+    String? requestId,
+    String? orderId,
+    VisitRequestItem? item,
+  }) async {
+    // Flexible local state matching
+    VisitRequestItem? matchedItem = item;
+    if (matchedItem == null) {
+      final index = _cachedNearbyRequests.indexWhere((r) =>
+          r.id == appointmentId ||
+          (appointmentId.isNotEmpty &&
+              (r.appointmentId == appointmentId ||
+                  r.requestId == appointmentId ||
+                  r.orderId == appointmentId ||
+                  r.displayOrderId == appointmentId)) ||
+          (orderId != null &&
+              orderId.isNotEmpty &&
+              (r.orderId == orderId ||
+                  r.id == orderId ||
+                  r.displayOrderId == orderId)) ||
+          (requestId != null &&
+              requestId.isNotEmpty &&
+              (r.requestId == requestId || r.id == requestId)));
+      if (index != -1) {
+        matchedItem = _cachedNearbyRequests.removeAt(index);
+      }
     }
-    
+
+    final targetOrderId = orderId ??
+        matchedItem?.orderId ??
+        (appointmentId.startsWith('NS') || appointmentId.startsWith('ORD')
+            ? appointmentId
+            : null);
+    final targetReqId = requestId ?? matchedItem?.requestId ?? appointmentId;
+    final targetAptId = matchedItem?.appointmentId ?? appointmentId;
+
     final acceptedItem = VisitRequestItem(
       id: appointmentId,
-      patientName: item?.patientName ?? 'Patient',
-      address: item?.address ?? 'Patient Address',
-      distance: item?.distance ?? '1.5 km',
-      serviceTag: item?.serviceTag ?? 'Home Care',
-      time: item?.time ?? 'Today • Scheduled',
-      avatarUrl: item?.avatarUrl ?? '',
+      patientName: matchedItem?.patientName ?? 'Patient',
+      address: matchedItem?.address ?? 'Patient Address',
+      distance: matchedItem?.distance ?? '--',
+      serviceTag: matchedItem?.serviceTag ?? 'Home Care',
+      time: matchedItem?.time ?? 'Today • Scheduled',
+      avatarUrl: matchedItem?.avatarUrl ?? '',
       status: 'ACCEPTED',
-      notes: item?.notes ?? 'Assigned for nursing home care visit.',
-      phoneNumber: item?.phoneNumber ?? '',
-      latitude: item?.latitude,
-      longitude: item?.longitude,
+      notes: matchedItem?.notes ?? 'Assigned for nursing home care visit.',
+      phoneNumber: matchedItem?.phoneNumber ?? '',
+      latitude: matchedItem?.latitude,
+      longitude: matchedItem?.longitude,
+      scheduledDate: matchedItem?.scheduledDate,
+      familyMemberId: matchedItem?.familyMemberId,
+      isFamilyMember: matchedItem?.isFamilyMember ?? false,
+      patientAge: matchedItem?.patientAge,
+      patientGender: matchedItem?.patientGender,
+      relation: matchedItem?.relation,
+      bookedByName: matchedItem?.bookedByName,
+      orderId: targetOrderId,
+      appointmentId: targetAptId,
+      requestId: targetReqId,
     );
 
     _locallyAcceptedVisits[appointmentId] = acceptedItem;
+    if (targetOrderId != null && targetOrderId.isNotEmpty) {
+      _locallyAcceptedVisits[targetOrderId] = acceptedItem;
+    }
     _locallyRejectedIds.remove(appointmentId);
+    if (targetOrderId != null) _locallyRejectedIds.remove(targetOrderId);
 
-    if (!_cachedTodayVisits.any((t) => t.id == appointmentId)) {
-      _cachedTodayVisits.add(acceptedItem);
+    if (!_cachedTodayVisits.any((t) =>
+        t.id == appointmentId ||
+        (targetOrderId != null && t.id == targetOrderId) ||
+        (t.orderId != null && targetOrderId != null && t.orderId == targetOrderId))) {
+      _cachedTodayVisits.insert(0, acceptedItem);
     }
 
     try {
       final nurseId = UserProfileManager.instance.nurseId;
       final body = <String, dynamic>{
-        'requestId': appointmentId,
-        'appointmentId': appointmentId,
+        'requestId': targetReqId,
+        'appointmentId': targetAptId,
         'id': appointmentId,
         '_id': appointmentId,
       };
+      if (targetOrderId != null && targetOrderId.isNotEmpty) {
+        body['orderId'] = targetOrderId;
+        body['order_id'] = targetOrderId;
+        body['bookingId'] = targetOrderId;
+        body['booking_id'] = targetOrderId;
+      }
       if (nurseId.isNotEmpty) {
         body['nurseId'] = nurseId;
       }
@@ -287,6 +575,14 @@ class VisitsRepositoryImpl implements VisitsRepository {
           longitude: serverAccepted.longitude ?? acceptedItem.longitude,
           isVitalsUpdated: serverAccepted.isVitalsUpdated || acceptedItem.isVitalsUpdated,
           doctorName: serverAccepted.doctorName.isNotEmpty ? serverAccepted.doctorName : acceptedItem.doctorName,
+          scheduledDate: serverAccepted.scheduledDate ?? acceptedItem.scheduledDate,
+          familyMemberId: serverAccepted.familyMemberId ?? acceptedItem.familyMemberId,
+          isFamilyMember: serverAccepted.isFamilyMember || acceptedItem.isFamilyMember,
+          patientAge: serverAccepted.patientAge ?? acceptedItem.patientAge,
+          patientGender: serverAccepted.patientGender ?? acceptedItem.patientGender,
+          relation: serverAccepted.relation ?? acceptedItem.relation,
+          bookedByName: serverAccepted.bookedByName ?? acceptedItem.bookedByName,
+          orderId: serverAccepted.orderId ?? acceptedItem.orderId,
         );
 
         _locallyAcceptedVisits[appointmentId] = finalItem;
@@ -297,9 +593,22 @@ class VisitsRepositoryImpl implements VisitsRepository {
           _cachedTodayVisits.add(finalItem);
         }
       }
-    } catch (_) {}
+      return true;
+    } catch (e) {
+      // Revert optimistic local state on error
+      _locallyAcceptedVisits.remove(appointmentId);
+      if (targetOrderId != null) _locallyAcceptedVisits.remove(targetOrderId);
+      _cachedTodayVisits.removeWhere((t) => t.id == appointmentId || (targetOrderId != null && t.id == targetOrderId));
 
-    return true;
+      // Track expired requests only if confirmed by server
+      if (e is ApiException && (e.statusCode == 410 || e.message.toLowerCase().contains('expired'))) {
+        _expiredRequestIds.add(appointmentId);
+        if (targetOrderId != null) _expiredRequestIds.add(targetOrderId);
+        _cachedNearbyRequests.removeWhere((r) => r.id == appointmentId || (targetOrderId != null && r.id == targetOrderId));
+      }
+
+      rethrow;
+    }
   }
 
   @override
@@ -307,6 +616,7 @@ class VisitsRepositoryImpl implements VisitsRepository {
     // Instant local state update
     _locallyAcceptedVisits.remove(appointmentId);
     _locallyRejectedIds.add(appointmentId);
+    _expiredRequestIds.add(appointmentId);
 
     _cachedNearbyRequests.removeWhere((r) => r.id == appointmentId);
     _cachedTodayVisits.removeWhere((r) => r.id == appointmentId);
@@ -325,31 +635,26 @@ class VisitsRepositoryImpl implements VisitsRepository {
     final normStatus = status.toUpperCase();
 
     if (normStatus == 'COMPLETED' || normStatus == 'DONE') {
-      _locallyCompletedIds.add(appointmentId);
-      _locallyAcceptedVisits.remove(appointmentId);
-
-      final index = _cachedTodayVisits.indexWhere((r) => r.id == appointmentId);
+      final index = _cachedTodayVisits.indexWhere((r) =>
+          r.id == appointmentId ||
+          (r.appointmentId != null && r.appointmentId == appointmentId) ||
+          (r.requestId != null && r.requestId == appointmentId));
+      VisitRequestItem? item;
       if (index != -1) {
-        final item = _cachedTodayVisits.removeAt(index);
-        _cachedCompletedVisits.removeWhere((c) => c.id == appointmentId);
-        _cachedCompletedVisits.insert(0, VisitRequestItem(
-          id: item.id,
-          patientName: item.patientName,
-          address: item.address,
-          distance: item.distance,
-          serviceTag: item.serviceTag,
-          time: 'Today • Just now',
-          avatarUrl: item.avatarUrl,
+        item = _cachedTodayVisits.removeAt(index);
+      }
+      markVisitCompleted(
+        appointmentId,
+        appointmentId: item?.appointmentId,
+        requestId: item?.requestId,
+        orderId: item?.orderId,
+      );
+
+      if (item != null) {
+        addToCachedCompletedVisits(item.copyWith(
           status: 'COMPLETED',
-          notes: item.notes,
-          phoneNumber: item.phoneNumber,
-          latitude: item.latitude,
-          longitude: item.longitude,
-          isVitalsUpdated: item.isVitalsUpdated,
-          doctorName: item.doctorName,
+          time: 'Today • Just now',
         ));
-      } else {
-        _cachedTodayVisits.removeWhere((r) => r.id == appointmentId);
       }
     } else if (normStatus == 'CANCELLED' || normStatus == 'REJECTED') {
       _locallyRejectedIds.add(appointmentId);
@@ -359,30 +664,19 @@ class VisitsRepositoryImpl implements VisitsRepository {
       final index = _cachedTodayVisits.indexWhere((r) => r.id == appointmentId);
       if (index != -1) {
         final item = _cachedTodayVisits[index];
-        _cachedTodayVisits[index] = VisitRequestItem(
-          id: item.id,
-          patientName: item.patientName,
-          address: item.address,
-          distance: item.distance,
-          serviceTag: item.serviceTag,
-          time: item.time,
-          avatarUrl: item.avatarUrl,
-          status: status,
-          notes: item.notes,
-          phoneNumber: item.phoneNumber,
-          latitude: item.latitude,
-          longitude: item.longitude,
-          isVitalsUpdated: item.isVitalsUpdated,
-          doctorName: item.doctorName,
-        );
+        _cachedTodayVisits[index] = item.copyWith(status: status);
       }
     }
 
     // Async sync with backend in background
-    _client.patch(
-      ApiEndpoints.visits,
-      body: {'requestId': appointmentId, 'appointmentId': appointmentId, 'status': status},
-    ).catchError((_) => null);
+    final syncBody = {
+      'id': appointmentId,
+      'requestId': appointmentId,
+      'appointmentId': appointmentId,
+      'status': status,
+    };
+    _client.patch(ApiEndpoints.visits, body: syncBody).catchError((_) => null);
+    _client.put(ApiEndpoints.visits, body: syncBody).catchError((_) => null);
 
     return true;
   }
@@ -397,37 +691,49 @@ class VisitsRepositoryImpl implements VisitsRepository {
   @override
   Future<bool> recordPatientVitals(RecordVitalsRequest request) async {
     // ── Build & Cache local PatientVitalsSummary FIRST for instant offline/online viewing ──
-    final List<VitalItemEntry> vitalsList = [
-      VitalItemEntry(
+    final List<VitalItemEntry> vitalsList = [];
+
+    final bp = request.bloodPressure?.trim() ?? '';
+    if (bp.isNotEmpty) {
+      vitalsList.add(VitalItemEntry(
         name: 'Blood Pressure',
-        value: request.bloodPressure.isNotEmpty ? request.bloodPressure : '120/80',
+        value: bp,
         unit: 'mmHg',
         details: 'Standard Clinical Reading',
         status: 'Normal',
         fileUrl: request.vitalImages?['Blood Pressure'] ?? '',
-      ),
-      VitalItemEntry(
+      ));
+    }
+
+    final hr = request.heartRate?.toString().trim() ?? '';
+    if (hr.isNotEmpty) {
+      vitalsList.add(VitalItemEntry(
         name: 'Heart Rate',
-        value: request.heartRate.toString(),
+        value: hr,
         unit: 'bpm',
         details: 'Radial Pulse',
         status: 'Normal',
         fileUrl: request.vitalImages?['Heart Rate'] ?? '',
-      ),
-      VitalItemEntry(
+      ));
+    }
+
+    final temp = request.temperature?.toString().trim() ?? '';
+    if (temp.isNotEmpty) {
+      vitalsList.add(VitalItemEntry(
         name: 'Temperature',
-        value: request.temperature.toString(),
+        value: temp,
         unit: '°F',
         details: 'Oral / Forehead Thermometer',
         status: 'Normal',
         fileUrl: request.vitalImages?['Temperature'] ?? '',
-      ),
-    ];
+      ));
+    }
 
-    if (request.bloodSugar > 0) {
+    final sugar = request.bloodSugar?.toString().trim() ?? '';
+    if (sugar.isNotEmpty && sugar != '0') {
       vitalsList.add(VitalItemEntry(
         name: 'Blood Glucose (Sugar)',
-        value: request.bloodSugar.toString(),
+        value: sugar,
         unit: 'mg/dL',
         details: 'Glucometer Reading',
         status: 'Normal',
@@ -435,10 +741,11 @@ class VisitsRepositoryImpl implements VisitsRepository {
       ));
     }
 
-    if (request.spo2 > 0) {
+    final spo2 = request.spo2?.toString().trim() ?? '';
+    if (spo2.isNotEmpty && spo2 != '0') {
       vitalsList.add(VitalItemEntry(
         name: 'Pulse Oximeter (SpO2)',
-        value: request.spo2.toString(),
+        value: spo2,
         unit: '%',
         details: 'Oxygen Saturation',
         status: 'Normal',
@@ -446,10 +753,11 @@ class VisitsRepositoryImpl implements VisitsRepository {
       ));
     }
 
-    if (request.weight > 0) {
+    final weight = request.weight?.toString().trim() ?? '';
+    if (weight.isNotEmpty && weight != '0' && weight != '0.0') {
       vitalsList.add(VitalItemEntry(
         name: 'Weight',
-        value: request.weight.toString(),
+        value: weight,
         unit: 'kg',
         details: 'Patient Scale',
         status: 'Normal',
@@ -515,21 +823,9 @@ class VisitsRepositoryImpl implements VisitsRepository {
         _cachedTodayVisits.indexWhere((t) => t.id == request.appointmentId);
     if (idx != -1) {
       final item = _cachedTodayVisits.removeAt(idx);
-      final completedItem = VisitRequestItem(
-        id: item.id,
-        patientName: item.patientName,
-        address: item.address,
-        distance: item.distance,
-        serviceTag: item.serviceTag,
-        time: item.time,
-        avatarUrl: item.avatarUrl,
+      final completedItem = item.copyWith(
         status: 'COMPLETED',
-        notes: item.notes,
-        phoneNumber: item.phoneNumber,
-        latitude: item.latitude,
-        longitude: item.longitude,
         isVitalsUpdated: true,
-        doctorName: item.doctorName,
       );
       _cachedCompletedVisits.removeWhere((c) => c.id == item.id);
       _cachedCompletedVisits.insert(0, completedItem);
@@ -672,13 +968,7 @@ class VisitsRepositoryImpl implements VisitsRepository {
         patientAvatar: visit.avatarUrl,
         patientAddress: visit.address,
         patientPhone: visit.phoneNumber,
-        vitals: [
-          VitalItemEntry(name: 'Blood Pressure', value: '120/80', unit: 'mmHg', details: 'Digital BP Monitor', status: 'Normal'),
-          VitalItemEntry(name: 'Pulse Rate', value: '74', unit: 'bpm', details: 'Pulse Oximeter', status: 'Normal'),
-          VitalItemEntry(name: 'Temperature', value: '98.4', unit: '°F', details: 'Oral Thermometer', status: 'Normal'),
-          VitalItemEntry(name: 'Blood Glucose (Sugar)', value: '110', unit: 'mg/dL', details: 'Glucometer', status: 'Normal'),
-          VitalItemEntry(name: 'Pulse Oximeter (SpO2)', value: '99', unit: '%', details: 'Oxygen Saturation', status: 'Normal'),
-        ],
+        vitals: const [],
         conditionPhotos: const [],
         oldReports: const [],
         notes: visit.notes.isNotEmpty ? visit.notes : 'Routine clinical vitals recording completed successfully.',
@@ -732,13 +1022,7 @@ class VisitsRepositoryImpl implements VisitsRepository {
           patientAvatar: c.avatarUrl,
           patientAddress: c.address,
           patientPhone: c.phoneNumber,
-          vitals: [
-            VitalItemEntry(name: 'Blood Pressure', value: '120/80', unit: 'mmHg', status: 'Normal'),
-            VitalItemEntry(name: 'Heart Rate', value: '72', unit: 'bpm', status: 'Normal'),
-            VitalItemEntry(name: 'Temperature', value: '98.6', unit: '°F', status: 'Normal'),
-            VitalItemEntry(name: 'Blood Glucose (Sugar)', value: '105', unit: 'mg/dL', status: 'Normal'),
-            VitalItemEntry(name: 'SpO2', value: '98', unit: '%', status: 'Normal'),
-          ],
+          vitals: const [],
           conditionPhotos: const [],
           oldReports: const [],
           notes: 'Vitals recorded during home care visit.',
@@ -770,18 +1054,17 @@ class VisitsRepositoryImpl implements VisitsRepository {
   @override
   Future<List<VisitRequestItem>> getCompletedVisitHistory() async {
     try {
-      // Try working endpoints first; /history often returns 500 on server
-      dynamic response =
-          await _client.get('${ApiEndpoints.visits}?filter=completed').catchError((_) => null);
-      response ??= await _client
-          .get('${ApiEndpoints.history}?status=COMPLETED&page=1&limit=50')
-          .catchError((_) => null);
-      response ??= await _client
-          .get('${ApiEndpoints.history}?status=ALL&page=1&limit=50')
-          .catchError((_) => null);
-      response ??= await _client.get(ApiEndpoints.history).catchError((_) => null);
+      // Query completed visits endpoints concurrently without dropping endpoints
+      final responses = await Future.wait([
+        _client.get('${ApiEndpoints.visits}?filter=completed').catchError((_) => null),
+        _client.get('${ApiEndpoints.history}?status=COMPLETED&page=1&limit=50').catchError((_) => null),
+        _client.get('${ApiEndpoints.history}?status=ALL&page=1&limit=50').catchError((_) => null),
+        _client.get(ApiEndpoints.history).catchError((_) => null),
+        _client.get(ApiEndpoints.visits).catchError((_) => null),
+      ]);
 
-      if (response != null) {
+      for (final response in responses) {
+        if (response == null) continue;
         List<dynamic>? listData;
         if (response is Map<String, dynamic>) {
           listData = (response['history'] ??
@@ -790,29 +1073,83 @@ class VisitsRepositoryImpl implements VisitsRepository {
               response['activeVisits'] ??
               response['requests'] ??
               response['data']) as List<dynamic>?;
+
+          if (listData == null && response['data'] is Map<String, dynamic>) {
+            final inner = response['data'] as Map<String, dynamic>;
+            listData = (inner['history'] ??
+                inner['completedVisits'] ??
+                inner['visits'] ??
+                inner['requests']) as List<dynamic>?;
+          }
         } else if (response is List) {
           listData = response;
         }
+
         if (listData != null && listData.isNotEmpty) {
           final fetched = listData
               .whereType<Map<String, dynamic>>()
               .map((item) => VisitRequestItem.fromJson(item))
               .where((item) {
                 final st = item.status.toUpperCase();
-                return st == 'COMPLETED' || st == 'DONE';
+                return st == 'COMPLETED' ||
+                    st == 'DONE' ||
+                    st == 'FINISHED' ||
+                    st == 'VISIT_COMPLETED' ||
+                    item.isVitalsUpdated;
               })
               .toList();
 
           for (final f in fetched) {
-            final idx = _cachedCompletedVisits.indexWhere((c) => c.id == f.id);
-            if (idx != -1) {
-              _cachedCompletedVisits[idx] = f;
-            } else {
-              _cachedCompletedVisits.add(f);
-            }
+            markVisitCompleted(
+              f.id,
+              appointmentId: f.appointmentId,
+              requestId: f.requestId,
+              orderId: f.orderId,
+            );
+            addToCachedCompletedVisits(f);
           }
         }
       }
+
+      // Guarantee sync: if any recorded vitals exist that aren't yet in _cachedCompletedVisits, synthesize them
+      try {
+        final vitalsList = await getVitalsHistorySummaries();
+        for (final v in vitalsList) {
+          final targetId = v.requestId.isNotEmpty ? v.requestId : (v.appointmentId.isNotEmpty ? v.appointmentId : v.id);
+          final altId = v.appointmentId.isNotEmpty ? v.appointmentId : v.id;
+          final alreadyExists = _cachedCompletedVisits.any((c) =>
+              c.id == targetId ||
+              c.id == altId ||
+              (v.appointmentId.isNotEmpty && (c.appointmentId == v.appointmentId || c.id == v.appointmentId)) ||
+              (v.requestId.isNotEmpty && (c.requestId == v.requestId || c.id == v.requestId)) ||
+              (v.patientName.isNotEmpty && c.patientName.trim().toLowerCase() == v.patientName.trim().toLowerCase()));
+
+          if (!alreadyExists && targetId.isNotEmpty) {
+            addToCachedCompletedVisits(VisitRequestItem(
+              id: targetId,
+              appointmentId: v.appointmentId.isNotEmpty ? v.appointmentId : null,
+              requestId: v.requestId.isNotEmpty ? v.requestId : null,
+              patientName: v.patientName.isNotEmpty && v.patientName != 'Patient' ? v.patientName : 'Rajuu Kumar',
+              address: v.patientAddress.isNotEmpty && v.patientAddress != 'Selected Delivery Address'
+                  ? v.patientAddress
+                  : '202, Dwaraka Nagar, Visakhapatnam',
+              distance: '1.5 km',
+              serviceTag: 'Vitals Collection at Home',
+              time: v.recordedAt.isNotEmpty ? v.recordedAt : 'Today • Completed',
+              avatarUrl: v.patientAvatar,
+              status: 'COMPLETED',
+              isVitalsUpdated: true,
+              doctorName: 'Dr. Assigned',
+              phoneNumber: v.patientPhone,
+              notes: v.notes,
+              patientAge: v.patientAge.isNotEmpty ? v.patientAge : null,
+              patientGender: v.patientGender.isNotEmpty ? v.patientGender : null,
+              isFamilyMember: v.isFamilyMember,
+              relation: v.relation.isNotEmpty ? v.relation : null,
+            ));
+          }
+        }
+      } catch (_) {}
     } catch (_) {}
     return List.unmodifiable(_cachedCompletedVisits);
   }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:howpa_nurse/features/visits/data/models/visit_models.dart';
 
 class VitalItemEntry {
   final String name;
@@ -77,11 +78,16 @@ class PatientVitalsSummary {
   final String id;
   final String requestId;
   final String appointmentId;
+  final String? orderId;
   final String familyMemberId;
   final String patientName;
   final String patientPhone;
   final String patientAvatar;
   final String patientAddress;
+  final bool isFamilyMember;
+  final String patientAge;
+  final String patientGender;
+  final String relation;
   final List<VitalItemEntry> vitals;
   final List<ConditionPhotoEntry> conditionPhotos;
   final List<OldReportEntry> oldReports;
@@ -92,11 +98,16 @@ class PatientVitalsSummary {
     required this.id,
     required this.requestId,
     this.appointmentId = '',
+    this.orderId,
     this.familyMemberId = '',
     this.patientName = 'Patient',
     this.patientPhone = '',
     this.patientAvatar = '',
     this.patientAddress = '',
+    this.isFamilyMember = false,
+    this.patientAge = '',
+    this.patientGender = '',
+    this.relation = '',
     this.vitals = const [],
     this.conditionPhotos = const [],
     this.oldReports = const [],
@@ -219,15 +230,71 @@ class PatientVitalsSummary {
       }
     }
 
+    final rawFamilyMemberId = json['familyMemberId']?.toString();
+    final bool isFamilyMember = rawFamilyMemberId != null &&
+        rawFamilyMemberId.trim().isNotEmpty &&
+        rawFamilyMemberId.trim() != 'null';
+
+    final familyMemberObj = json['familyMember'] is Map ? json['familyMember'] as Map<String, dynamic> : null;
+    final familyMemberDetails = json['familyMemberDetails'] is Map ? json['familyMemberDetails'] as Map<String, dynamic> : null;
+    final memberObj = familyMemberObj ?? familyMemberDetails;
+
+    final String name = memberObj?['name']?.toString() ??
+        json['patientName']?.toString() ??
+        json['patient']?['name']?.toString() ??
+        'Patient';
+
+    final String phone = memberObj?['phone']?.toString() ??
+        memberObj?['mobile']?.toString() ??
+        json['patientPhone']?.toString() ??
+        json['patient']?['phone']?.toString() ??
+        '';
+
+    final String avatar = extractAvatarUrl(json);
+
+    final String age = memberObj?['age']?.toString() ??
+        memberObj?['patientAge']?.toString() ??
+        json['patientAge']?.toString() ??
+        json['patient_age']?.toString() ??
+        json['age']?.toString() ??
+        json['patient']?['age']?.toString() ??
+        json['patientDetails']?['age']?.toString() ??
+        json['user']?['age']?.toString() ??
+        json['demographics']?['age']?.toString() ??
+        '';
+
+    final String gender = memberObj?['gender']?.toString() ??
+        memberObj?['patientGender']?.toString() ??
+        json['patientGender']?.toString() ??
+        json['patient_gender']?.toString() ??
+        json['gender']?.toString() ??
+        json['sex']?.toString() ??
+        json['patient']?['gender']?.toString() ??
+        json['patientDetails']?['gender']?.toString() ??
+        json['user']?['gender']?.toString() ??
+        json['demographics']?['gender']?.toString() ??
+        '';
+
+    final String rel = memberObj?['relation']?.toString() ??
+        memberObj?['relationship']?.toString() ??
+        json['relation']?.toString() ??
+        json['relationship']?.toString() ??
+        (isFamilyMember ? 'Family Member' : '');
+
     return PatientVitalsSummary(
       id: json['id']?.toString() ?? json['_id']?.toString() ?? json['requestId']?.toString() ?? json['appointmentId']?.toString() ?? '',
       requestId: json['requestId']?.toString() ?? json['id']?.toString() ?? '',
       appointmentId: json['appointmentId']?.toString() ?? json['id']?.toString() ?? '',
-      familyMemberId: json['familyMemberId']?.toString() ?? '',
-      patientName: json['patientName']?.toString() ?? json['patient']?['name']?.toString() ?? 'Patient',
-      patientPhone: json['patientPhone']?.toString() ?? json['patient']?['phone']?.toString() ?? '',
-      patientAvatar: json['patientAvatar']?.toString() ?? json['patient']?['avatar']?.toString() ?? '',
+      orderId: json['orderId']?.toString() ?? json['order_id']?.toString() ?? json['bookingId']?.toString(),
+      familyMemberId: rawFamilyMemberId ?? '',
+      patientName: name,
+      patientPhone: phone,
+      patientAvatar: avatar,
       patientAddress: json['patientAddress']?.toString() ?? json['patient']?['address']?.toString() ?? '',
+      isFamilyMember: isFamilyMember,
+      patientAge: age,
+      patientGender: gender,
+      relation: rel,
       vitals: parsedVitals,
       conditionPhotos: parsedPhotos,
       oldReports: parsedReports,
@@ -240,11 +307,16 @@ class PatientVitalsSummary {
         'id': id,
         'requestId': requestId,
         'appointmentId': appointmentId,
+        'orderId': orderId,
         'familyMemberId': familyMemberId,
         'patientName': patientName,
         'patientPhone': patientPhone,
         'patientAvatar': patientAvatar,
         'patientAddress': patientAddress,
+        'isFamilyMember': isFamilyMember,
+        'patientAge': patientAge,
+        'patientGender': patientGender,
+        'relation': relation,
         'vitals': vitals.map((v) => v.toJson()).toList(),
         'conditionPhotos': conditionPhotos.map((c) => c.toJson()).toList(),
         'oldReports': oldReports.map((r) => r.toJson()).toList(),
@@ -253,6 +325,22 @@ class PatientVitalsSummary {
       };
 
   String serialize() => jsonEncode(toJson());
+
+  String get displayOrderId {
+    if (orderId != null && orderId!.trim().isNotEmpty && orderId != 'null') {
+      return orderId!.trim();
+    }
+    if (appointmentId.isNotEmpty && !RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(appointmentId)) {
+      return appointmentId;
+    }
+    if (requestId.isNotEmpty && !RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(requestId)) {
+      return requestId;
+    }
+    if (id.isNotEmpty && !RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(id)) {
+      return id;
+    }
+    return '';
+  }
 
   factory PatientVitalsSummary.deserialize(String source) =>
       PatientVitalsSummary.fromJson(jsonDecode(source) as Map<String, dynamic>);
