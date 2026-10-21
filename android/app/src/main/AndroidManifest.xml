@@ -20,7 +20,8 @@
         android:icon="@mipmap/ic_launcher"
         android:largeHeap="true"
         android:requestLegacyExternalStorage="true"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
+        android:enableOnBackInvokedCallback="true">
         <!-- Firebase Messaging Channel -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"

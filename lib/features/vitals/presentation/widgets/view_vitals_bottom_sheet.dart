@@ -296,12 +296,16 @@ class ViewVitalsBottomSheet extends StatelessWidget {
                                       children: [
                                         const Icon(Icons.tag_rounded, size: 10.5, color: Color(0xFF64748B)),
                                         const SizedBox(width: 3),
-                                        Text(
-                                          'Order ID: ${summary.displayOrderId}',
-                                          style: const TextStyle(
-                                            fontSize: 10.5,
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF334155),
+                                        Flexible(
+                                          child: Text(
+                                            'Order ID: ${summary.displayOrderId}',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF334155),
+                                            ),
                                           ),
                                         ),
                                       ],

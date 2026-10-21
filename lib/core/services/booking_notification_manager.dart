@@ -233,13 +233,17 @@ class BookingNotificationManager {
                         children: [
                           const Icon(Icons.tag_rounded, size: 13, color: Color(0xFF0052FF)),
                           const SizedBox(width: 4),
-                          Text(
-                            'Order ID: ${item.displayOrderId}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF0052FF),
-                              letterSpacing: 0.2,
+                          Flexible(
+                            child: Text(
+                              'Order ID: ${item.displayOrderId}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0052FF),
+                                letterSpacing: 0.2,
+                              ),
                             ),
                           ),
                         ],
