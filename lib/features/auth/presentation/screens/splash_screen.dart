@@ -7,6 +7,7 @@ import 'registration_step1_screen.dart';
 import 'registration_step2_screen.dart';
 import 'verification_in_progress_screen.dart';
 import 'onboarding_screen.dart';
+import 'package:howpa_nurse/core/services/push_notification_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -64,28 +65,52 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     try {
       final token = await TokenStorage.getToken();
       if (token != null && token.isNotEmpty) {
+        // Automatically sync device push token with backend on cold start
+        PushNotificationService.instance.syncTokenWithBackend();
+
         final profile = await ProfileRepositoryImpl().getProfile();
         if (!mounted) return;
 
         if (profile != null) {
-          final bool hasFullName = profile.fullName != null && profile.fullName!.trim().isNotEmpty;
+          final bool hasFullName = profile.fullName != null && profile.fullName!.trim().isNotEmpty && profile.fullName != 'Nurse';
           final phone = profile.phone.isNotEmpty ? profile.phone : (await TokenStorage.getPhone() ?? '');
+          final cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
 
           final isApproved = profile.isApproved;
-          final isProfileCompleted = profile.isProfileCompleted && hasFullName;
-          final isKycSubmitted = profile.isKycSubmitted;
+          final isUnderReview = profile.isUnderReview;
+          final isProfileCompleted = (profile.isProfileCompleted && hasFullName) || isUnderReview;
+          bool isKycSubmitted = profile.isKycSubmitted || isUnderReview;
+
+          if (!isApproved && isProfileCompleted && !isKycSubmitted) {
+            final locallyRecorded = await TokenStorage.isKycSubmitted(cleanPhone);
+            if (locallyRecorded) {
+              isKycSubmitted = true;
+            } else {
+              try {
+                final docStatus = await ProfileRepositoryImpl().getDocumentsStatus();
+                if (docStatus.hasAnyDocumentUploaded || docStatus.isUnderReview) {
+                  isKycSubmitted = true;
+                  await TokenStorage.setKycSubmitted(cleanPhone, true);
+                }
+              } catch (_) {}
+            }
+          }
+
+          if (isUnderReview || isKycSubmitted) {
+            await TokenStorage.setKycSubmitted(cleanPhone, true);
+          }
 
           if (isApproved) {
             _navigateTo(const NurseDashboardScreen());
             return;
+          } else if (isUnderReview || isKycSubmitted) {
+            _navigateTo(VerificationInProgressScreen(registeredPhone: phone));
+            return;
           } else if (!isProfileCompleted) {
             _navigateTo(RegistrationStep1Screen(phoneNumber: phone));
             return;
-          } else if (!isKycSubmitted) {
-            _navigateTo(RegistrationStep2Screen(phoneNumber: phone));
-            return;
           } else {
-            _navigateTo(VerificationInProgressScreen(registeredPhone: phone));
+            _navigateTo(RegistrationStep2Screen(phoneNumber: phone));
             return;
           }
         }

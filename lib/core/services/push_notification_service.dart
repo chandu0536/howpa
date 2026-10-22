@@ -111,18 +111,54 @@ class PushNotificationService {
         },
       );
 
-      const AndroidNotificationChannel channel = AndroidNotificationChannel(
-        'howpa_nurse_channel',
-        'Howpa Nurse Notifications',
-        description: 'Notifications for Howpa Nurse booking requests and updates',
-        importance: Importance.max,
-        playSound: true,
-        enableVibration: true,
-      );
+      final List<AndroidNotificationChannel> channels = [
+        const AndroidNotificationChannel(
+          'howpa_nurse_channel',
+          'Howpa Nurse Notifications',
+          description: 'Notifications for Howpa Nurse booking requests and updates',
+          importance: Importance.max,
+          playSound: true,
+          enableVibration: true,
+        ),
+        const AndroidNotificationChannel(
+          'default',
+          'Default Notifications',
+          description: 'General updates and admin notifications',
+          importance: Importance.max,
+          playSound: true,
+          enableVibration: true,
+        ),
+        const AndroidNotificationChannel(
+          'howpa_channel',
+          'Howpa Notifications',
+          description: 'Howpa system announcements and notifications',
+          importance: Importance.max,
+          playSound: true,
+          enableVibration: true,
+        ),
+        const AndroidNotificationChannel(
+          'fcm_default_channel',
+          'FCM Notifications',
+          description: 'Push notifications from Admin',
+          importance: Importance.max,
+          playSound: true,
+          enableVibration: true,
+        ),
+        const AndroidNotificationChannel(
+          'high_importance_channel',
+          'High Importance Notifications',
+          description: 'Urgent announcements and visit alerts',
+          importance: Importance.max,
+          playSound: true,
+          enableVibration: true,
+        ),
+      ];
 
       final androidImpl = _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       if (androidImpl != null) {
-        await androidImpl.createNotificationChannel(channel);
+        for (final ch in channels) {
+          await androidImpl.createNotificationChannel(ch);
+        }
       }
 
       _isLocalNotificationsInitialized = true;
@@ -141,9 +177,27 @@ class PushNotificationService {
     try {
       await initLocalNotifications();
 
+      String channelId = 'howpa_nurse_channel';
+      String channelName = 'Howpa Nurse Notifications';
+      if (data != null) {
+        final incomingChannel = (data['channel_id'] ?? data['android_channel_id'] ?? data['channel'])?.toString();
+        if (incomingChannel != null && incomingChannel.isNotEmpty) {
+          channelId = incomingChannel;
+          if (channelId == 'default') {
+            channelName = 'Default Notifications';
+          } else if (channelId == 'howpa_channel') {
+            channelName = 'Howpa Notifications';
+          } else if (channelId == 'fcm_default_channel') {
+            channelName = 'FCM Notifications';
+          } else if (channelId == 'high_importance_channel') {
+            channelName = 'High Importance Notifications';
+          }
+        }
+      }
+
       final androidDetails = AndroidNotificationDetails(
-        'howpa_nurse_channel',
-        'Howpa Nurse Notifications',
+        channelId,
+        channelName,
         channelDescription: 'Notifications for Howpa Nurse booking requests and updates',
         importance: Importance.max,
         priority: Priority.high,
@@ -201,19 +255,51 @@ class PushNotificationService {
       return null;
     }
 
+    final Map<String, dynamic> mergedData = Map<String, dynamic>.from(data);
+    if (data['notification'] is Map) {
+      mergedData.addAll(Map<String, dynamic>.from(data['notification'] as Map));
+    } else if (data['notification'] is String) {
+      try {
+        final parsed = jsonDecode(data['notification'] as String);
+        if (parsed is Map) {
+          mergedData.addAll(Map<String, dynamic>.from(parsed));
+        }
+      } catch (_) {}
+    }
+    if (data['data'] is Map) {
+      mergedData.addAll(Map<String, dynamic>.from(data['data'] as Map));
+    } else if (data['data'] is String) {
+      try {
+        final parsed = jsonDecode(data['data'] as String);
+        if (parsed is Map) {
+          mergedData.addAll(Map<String, dynamic>.from(parsed));
+        }
+      } catch (_) {}
+    }
+
     // 1. Resolve Title
     String title = (message.notification?.title ?? '').trim();
     if (title.isEmpty) {
-      title = (data['title'] ??
-              data['heading'] ??
-              data['subject'] ??
-              data['header'] ??
-              '')
-          .toString()
-          .trim();
+      for (final key in [
+        'title',
+        'heading',
+        'subject',
+        'header',
+        'notification_title',
+        'notificationTitle',
+        'alert_title',
+        'alertTitle',
+        'topic',
+      ]) {
+        final val = mergedData[key]?.toString().trim();
+        if (val != null && val.isNotEmpty && val != 'null') {
+          title = val;
+          break;
+        }
+      }
     }
 
-    final patientName = (data['patientName'] ?? data['patient_name'] ?? data['name'] ?? '').toString().trim();
+    final patientName = (mergedData['patientName'] ?? mergedData['patient_name'] ?? mergedData['name'] ?? '').toString().trim();
 
     if (title.isEmpty) {
       if (type.contains('VISIT') || type.contains('BOOKING')) {
@@ -226,36 +312,45 @@ class PushNotificationService {
         title = 'Visit Request Assigned';
       } else if (type.contains('VITAL')) {
         title = 'Patient Vitals Update';
-      } else {
-        title = '';
       }
     }
 
     // 2. Resolve Body / Matter
     String body = (message.notification?.body ?? '').trim();
     if (body.isEmpty) {
-      body = (data['body'] ??
-              data['message'] ??
-              data['msg'] ??
-              data['desc'] ??
-              data['description'] ??
-              data['text'] ??
-              data['alert'] ??
-              data['content'] ??
-              '')
-          .toString()
-          .trim();
+      for (final key in [
+        'body',
+        'message',
+        'msg',
+        'desc',
+        'description',
+        'text',
+        'alert',
+        'content',
+        'notification_body',
+        'notificationBody',
+        'notification_message',
+        'notificationMessage',
+        'details',
+        'note',
+      ]) {
+        final val = mergedData[key]?.toString().trim();
+        if (val != null && val.isNotEmpty && val != 'null') {
+          body = val;
+          break;
+        }
+      }
     }
 
     if (body.isEmpty) {
-      final service = (data['service'] ??
-              data['serviceTag'] ??
-              data['serviceName'] ??
-              data['service_tag'] ??
+      final service = (mergedData['service'] ??
+              mergedData['serviceTag'] ??
+              mergedData['serviceName'] ??
+              mergedData['service_tag'] ??
               '')
           .toString()
           .trim();
-      final address = (data['address'] ?? data['location'] ?? data['area'] ?? '').toString().trim();
+      final address = (mergedData['address'] ?? mergedData['location'] ?? mergedData['area'] ?? '').toString().trim();
 
       final parts = <String>[];
       if (patientName.isNotEmpty) parts.add('Patient: $patientName');
@@ -266,13 +361,18 @@ class PushNotificationService {
         body = parts.join(' • ');
       } else if (type.contains('VISIT') || type.contains('BOOKING')) {
         body = 'A new patient visit request has just arrived nearby. Tap to view and accept.';
-      } else {
-        body = '';
       }
     }
 
-    // If both title and body are empty, or neither has real information, return null
-    if (title.isEmpty || body.isEmpty) {
+    // Smart Fallbacks so admin notifications are NEVER discarded
+    if (title.isEmpty && body.isNotEmpty) {
+      title = 'Howpa Nurse';
+    } else if (body.isEmpty && title.isNotEmpty) {
+      body = title;
+      title = 'Howpa Nurse';
+    }
+
+    if (title.isEmpty && body.isEmpty) {
       return null;
     }
 
@@ -362,6 +462,17 @@ class PushNotificationService {
         sound: true,
       );
       debugPrint('🔔 [FIREBASE_MESSAGING] Authorization status: ${settings.authorizationStatus}');
+
+      // Also request notification permission explicitly via Android local notifications on Android 13+
+      try {
+        final androidImpl = _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+        if (androidImpl != null) {
+          final localGranted = await androidImpl.requestNotificationsPermission();
+          debugPrint('🔔 [LOCAL_NOTIFICATIONS] Android 13+ permission status: $localGranted');
+        }
+      } catch (e) {
+        debugPrint('ℹ️ Local notification permission check: $e');
+      }
 
       final isGranted = settings.authorizationStatus == AuthorizationStatus.authorized ||
           settings.authorizationStatus == AuthorizationStatus.provisional;
@@ -494,15 +605,12 @@ class PushNotificationService {
       resolvedBody: resolvedBody,
     );
 
-    // Only post system tray notification for data-only messages so we don't double-notify
-    // if FCM foreground presentation already displays message.notification
-    if (message.notification == null) {
-      showSystemNotification(
-        title: resolvedTitle,
-        body: resolvedBody,
-        data: message.data,
-      );
-    }
+    // Always show system notification in the status bar tray with sound & vibration
+    showSystemNotification(
+      title: resolvedTitle,
+      body: resolvedBody,
+      data: message.data,
+    );
   }
 
   void _showForegroundInAppBanner(

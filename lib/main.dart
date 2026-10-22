@@ -70,6 +70,7 @@ class _HowpaNurseAppState extends State<HowpaNurseApp> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Trigger notification permission dialog as soon as the app window is mounted & visible
       PushNotificationService.instance.requestNotificationPermissions();
+      PushNotificationService.instance.syncTokenWithBackend();
     });
   }
 
@@ -80,6 +81,15 @@ class _HowpaNurseAppState extends State<HowpaNurseApp> {
       navigatorKey: PushNotificationService.navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
+      builder: (context, child) {
+        final mediaQuery = MediaQuery.of(context);
+        return MediaQuery(
+          data: mediaQuery.copyWith(
+            textScaler: const TextScaler.linear(0.88),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       initialRoute: AppRoutes.initial,
       onGenerateRoute: AppRouter.onGenerateRoute,
     );

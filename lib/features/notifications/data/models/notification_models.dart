@@ -44,7 +44,10 @@ class DeviceTokenRegistrationRequest {
         'token': token,
         'deviceToken': token,
         'fcmToken': token,
+        'pushToken': token,
+        'registrationToken': token,
         'platform': platform,
+        'deviceType': platform.toLowerCase(),
         if (deviceId != null) 'deviceId': deviceId,
         if (appVersion != null) 'appVersion': appVersion,
       };

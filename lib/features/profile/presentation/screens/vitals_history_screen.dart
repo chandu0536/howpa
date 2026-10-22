@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../vitals/data/models/vitals_details_model.dart';
-import '../../../vitals/presentation/widgets/view_vitals_bottom_sheet.dart';
+import '../../../vitals/presentation/screens/view_vitals_screen.dart';
 import '../../../visits/data/models/visit_models.dart';
 import '../../../visits/data/repositories/visits_repository.dart';
 
@@ -464,7 +464,14 @@ class _VitalsHistoryScreenState extends State<VitalsHistoryScreen> {
               width: double.infinity,
               height: 42,
               child: ElevatedButton.icon(
-                onPressed: () => ViewVitalsBottomSheet.show(context, summary),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ViewVitalsScreen(summary: summary),
+                    ),
+                  );
+                },
                 icon: const Icon(Icons.visibility_outlined, size: 18, color: Colors.white),
                 label: const Text(
                   'View Full Vitals & Records',

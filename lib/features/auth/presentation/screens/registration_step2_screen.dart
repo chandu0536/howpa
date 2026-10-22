@@ -87,7 +87,15 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
         storedPhone.isNotEmpty &&
         !storedPhone.endsWith(incomingDigits) &&
         !incomingDigits.endsWith(storedPhone)) {
-      // Different phone number! Do not fetch previous documents
+      // Different phone number! Do not fetch previous documents and reset cards
+      setState(() {
+        for (final doc in _documents) {
+          doc.isUploaded = false;
+          doc.remoteUrl = null;
+          doc.uploadedFileName = null;
+          doc.file = null;
+        }
+      });
       return;
     }
 
@@ -95,6 +103,24 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
     try {
       final docStatus = await ProfileRepositoryImpl().getDocumentsStatus();
       if (!mounted) return;
+
+      final bool hasBothMandatory = docStatus.isNursingCertUploaded && docStatus.isAadhaarFrontUploaded;
+      if (docStatus.isUnderReview || hasBothMandatory) {
+        final phoneKey = incomingDigits.isNotEmpty ? incomingDigits : storedPhone;
+        if (phoneKey.isNotEmpty) {
+          await TokenStorage.setKycSubmitted(phoneKey, true);
+        }
+        if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (_) => VerificationInProgressScreen(registeredPhone: widget.phoneNumber),
+            ),
+            (route) => false,
+          );
+          return;
+        }
+      }
 
       setState(() {
         for (final doc in _documents) {
@@ -380,6 +406,11 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
       if (!mounted) return;
 
       if (success) {
+        final cleanDigits = widget.phoneNumber.replaceAll(RegExp(r'\D'), '');
+        if (cleanDigits.isNotEmpty) {
+          await TokenStorage.setKycSubmitted(cleanDigits, true);
+        }
+
         final uploadedDocPreviews = <String, String>{};
         for (final doc in _documents) {
           if (doc.file != null && doc.file!.existsSync()) {
@@ -388,6 +419,8 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
             uploadedDocPreviews[doc.id] = doc.remoteUrl!;
           }
         }
+
+        if (!mounted) return;
 
         // Navigate to Verification In Progress screen ONLY on backend confirmation
         Navigator.pushAndRemoveUntil(
@@ -503,7 +536,7 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
             // STICKY / FIXED TOP HEADER (Progress bar with Orange Line stays visible even when scrolling)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               color: const Color(0xFFFCFCFD),
               child: Column(
                 children: [
@@ -513,7 +546,7 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
                       const Text(
                         'Step 2 of 2',
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: 12.5,
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF0F172A),
                         ),
@@ -521,14 +554,14 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
                       Text(
                         '${((0.5 + (step2Progress * 0.5)) * 100).toInt()}% Done',
                         style: const TextStyle(
-                          fontSize: 13,
+                          fontSize: 11.5,
                           fontWeight: FontWeight.bold,
                           color: Color(0xFFFF5C00),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
 
                   // 2-Step Progress Bars with Orange Fill
                   Row(
@@ -588,11 +621,11 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
             // Scrollable Body
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 14),
 
                     // Title and Subtitle
                     Center(
@@ -602,18 +635,18 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
                             'Upload Your Documents',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontSize: 16,
+                              fontSize: 15,
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF0B1938),
-                              letterSpacing: -0.4,
+                              letterSpacing: -0.3,
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 4),
                           const Text(
                             'Required for verification by our team',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: 9.5,
                               color: Color(0xFF64748B),
                             ),
                           ),
@@ -621,29 +654,29 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
                       ),
                     ),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
 
                     // Document Cards List
                     ListView.separated(
                       physics: const NeverScrollableScrollPhysics(),
                       shrinkWrap: true,
                       itemCount: _documents.length,
-                      separatorBuilder: (context, index) => const SizedBox(height: 14),
+                      separatorBuilder: (context, index) => const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final doc = _documents[index];
                         return _buildDocumentCard(doc);
                       },
                     ),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
 
                     // Secure & Private Banner
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
                         color: const Color(0xFFEFF6FF),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: const Color(0xFFDBEAFE),
                           width: 1,
@@ -652,7 +685,7 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
                       child: Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(6),
+                            padding: const EdgeInsets.all(5),
                             decoration: const BoxDecoration(
                               color: Color(0xFF3B82F6),
                               shape: BoxShape.circle,
@@ -660,15 +693,15 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
                             child: const Icon(
                               Icons.check_rounded,
                               color: Colors.white,
-                              size: 14,
+                              size: 12,
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: RichText(
                               text: const TextSpan(
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 11,
                                   color: Color(0xFF334155),
                                   height: 1.3,
                                 ),
@@ -694,14 +727,14 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
                       ),
                     ),
 
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 20),
 
                     // Submit for Verification Button
                     Container(
                       width: double.infinity,
-                      height: 54,
+                      height: 44,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(10),
                         gradient: const LinearGradient(
                           colors: [
                             Color(0xFF0052FF), // Vibrant Blue
@@ -713,8 +746,8 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
                         boxShadow: const [
                           BoxShadow(
                             color: Color(0x260052FF),
-                            blurRadius: 12,
-                            offset: Offset(0, 4),
+                            blurRadius: 10,
+                            offset: Offset(0, 3),
                           ),
                         ],
                       ),
@@ -724,30 +757,30 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
                           backgroundColor: Colors.transparent,
                           shadowColor: Colors.transparent,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
                         child: _isLoading
                             ? const SizedBox(
-                                width: 24,
-                                height: 24,
+                                width: 20,
+                                height: 20,
                                 child: CircularProgressIndicator(
                                   color: Colors.white,
-                                  strokeWidth: 2.5,
+                                  strokeWidth: 2.2,
                                 ),
                               )
                             : const Text(
                                 'Submit for Verification',
                                 style: TextStyle(
                                   color: Colors.white,
-                                  fontSize: 16,
+                                  fontSize: 14,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                       ),
                     ),
 
-                    const SizedBox(height: 36),
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
@@ -764,10 +797,10 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
       onTap: () => _handleUpload(doc),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: doc.isUploaded ? const Color(0xFFF0F7FF) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: doc.isUploaded ? const Color(0xFF0052FF) : const Color(0xFFE2E8F0),
             width: doc.isUploaded ? 1.5 : 1.2,
@@ -775,7 +808,7 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
           boxShadow: [
             BoxShadow(
               color: doc.isUploaded ? const Color(0x1A0052FF) : const Color(0x06000000),
-              blurRadius: 8,
+              blurRadius: 6,
               offset: const Offset(0, 2),
             ),
           ],
@@ -784,20 +817,20 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
           children: [
             // Left Icon Container
             Container(
-              width: 44,
-              height: 44,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
                 color: doc.isUploaded ? const Color(0x1A0052FF) : const Color(0xFFEFF6FF),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
                 doc.isUploaded ? Icons.check_circle_rounded : doc.icon,
                 color: const Color(0xFF0052FF),
-                size: 22,
+                size: 18,
               ),
             ),
 
-            const SizedBox(width: 14),
+            const SizedBox(width: 10),
 
             // Middle Document Details
             Expanded(
@@ -810,7 +843,7 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
                         child: Text(
                           doc.title,
                           style: const TextStyle(
-                            fontSize: 14,
+                            fontSize: 12.5,
                             fontWeight: FontWeight.bold,
                             color: Color(0xFF0F172A),
                           ),
@@ -820,11 +853,11 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Text(
                     doc.isUploaded ? (doc.uploadedFileName ?? 'Uploaded') : doc.description,
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 10.5,
                       color: doc.isUploaded ? const Color(0xFF0052FF) : const Color(0xFF64748B),
                       fontWeight: doc.isUploaded ? FontWeight.w600 : FontWeight.normal,
                     ),
@@ -835,63 +868,68 @@ class _RegistrationStep2ScreenState extends State<RegistrationStep2Screen> {
               ),
             ),
 
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
 
             // Right Upload Button (Dashed box style)
             CustomPaint(
               painter: DashedRectPainter(
                 color: doc.isUploaded ? const Color(0xFF0052FF) : const Color(0xFF3B82F6),
                 strokeWidth: 1.2,
-                gap: 3.5,
+                gap: 3.0,
               ),
               child: Container(
-                width: 80,
-                height: 44,
+                width: 76,
+                height: 36,
                 alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: BoxDecoration(
                   color: doc.isUploaded ? Colors.white : const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: doc.isUploaded
-                    ? const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.check_circle_rounded,
-                            color: Color(0xFF0052FF),
-                            size: 16,
-                          ),
-                          SizedBox(width: 4),
-                          Text(
-                            'Uploaded',
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: doc.isUploaded
+                      ? const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.check_circle_rounded,
                               color: Color(0xFF0052FF),
+                              size: 15,
                             ),
-                          ),
-                        ],
-                      )
-                    : const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.file_upload_outlined,
-                            color: Color(0xFF0052FF),
-                            size: 16,
-                          ),
-                          SizedBox(width: 4),
-                          Text(
-                            'Upload',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
+                            SizedBox(width: 3),
+                            Text(
+                              'Uploaded',
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0052FF),
+                              ),
+                            ),
+                          ],
+                        )
+                      : const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.file_upload_outlined,
                               color: Color(0xFF0052FF),
+                              size: 15,
                             ),
-                          ),
-                        ],
-                      ),
+                            SizedBox(width: 3),
+                            Text(
+                              'Upload',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0052FF),
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
               ),
             ),
           ],

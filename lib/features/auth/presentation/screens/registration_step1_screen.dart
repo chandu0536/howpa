@@ -884,7 +884,7 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
             // STICKY / FIXED TOP HEADER (Progress bar with Orange Line stays visible even when scrolling)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               color: const Color(0xFFFCFCFD),
               child: Column(
                 children: [
@@ -894,7 +894,7 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                       const Text(
                         'Step 1 of 2',
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: 12.5,
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF0F172A),
                         ),
@@ -902,14 +902,14 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                       Text(
                         '${(progress * 100).toInt()}% Done',
                         style: const TextStyle(
-                          fontSize: 13,
+                          fontSize: 11.5,
                           fontWeight: FontWeight.bold,
                           color: Color(0xFFFF5C00),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
 
                   // 2-Step Progress Bars with Orange Fill
                   Row(
@@ -969,7 +969,7 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 14),
 
                       // Screen Title and Subtitle
                       Center(
@@ -979,18 +979,18 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                               'Let’s Get You Started',
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                fontSize: 26,
+                                fontSize: 20,
                                 fontWeight: FontWeight.bold,
                                 color: Color(0xFF0B1938),
                                 letterSpacing: -0.4,
                               ),
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 4),
                             const Text(
                               'Enter your personal and location details',
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                fontSize: 14,
+                                fontSize: 12,
                                 color: Color(0xFF64748B),
                               ),
                             ),
@@ -998,7 +998,7 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                         ),
                       ),
 
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 16),
 
                       // TOP MIDDLE PROFILE PICTURE UPLOAD
                       Center(
@@ -1010,8 +1010,8 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                                 alignment: Alignment.bottomRight,
                                 children: [
                                   Container(
-                                    width: 100,
-                                    height: 100,
+                                    width: 80,
+                                    height: 80,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       color: _hasProfilePhoto
@@ -1021,13 +1021,13 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                                         color: _hasProfilePhoto
                                             ? const Color(0xFFFF5C00)
                                             : const Color(0xFFCBD5E1),
-                                        width: 2.5,
+                                        width: 2.0,
                                       ),
                                       boxShadow: const [
                                         BoxShadow(
                                           color: Color(0x1A000000),
-                                          blurRadius: 10,
-                                          offset: Offset(0, 4),
+                                          blurRadius: 8,
+                                          offset: Offset(0, 3),
                                         ),
                                       ],
                                     ),
@@ -1035,8 +1035,8 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                                         ? ClipOval(
                                             child: Image.file(
                                               _profileImageFile!,
-                                              width: 100,
-                                              height: 100,
+                                              width: 80,
+                                              height: 80,
                                               fit: BoxFit.cover,
                                             ),
                                           )
@@ -1045,13 +1045,13 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                                             ? ClipOval(
                                                 child: Image.network(
                                                   UserProfileManager.instance.fullProfilePhotoUrl!,
-                                                  width: 100,
-                                                  height: 100,
+                                                  width: 80,
+                                                  height: 80,
                                                   fit: BoxFit.cover,
                                                   errorBuilder: (context, error, stackTrace) =>
                                                       const Icon(
                                                     Icons.person_rounded,
-                                                    size: 58,
+                                                    size: 46,
                                                     color: Color(0xFF0052FF),
                                                   ),
                                                 ),
@@ -1066,7 +1066,7 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                                                         children: [
                                                           Icon(
                                                             Icons.person_rounded,
-                                                            size: 58,
+                                                            size: 46,
                                                             color: Color(0xFF0052FF),
                                                           ),
                                                         ],
@@ -1075,14 +1075,14 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                                                   )
                                                 : const Icon(
                                                     Icons.person_outline_rounded,
-                                                    size: 48,
+                                                    size: 38,
                                                     color: Color(0xFF94A3B8),
                                                   ),
                                   ),
                                   // Camera badge button
                                   Container(
-                                    width: 34,
-                                    height: 34,
+                                    width: 28,
+                                    height: 28,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       color: const Color(0xFFFF5C00),
@@ -1093,27 +1093,27 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                                       boxShadow: const [
                                         BoxShadow(
                                           color: Color(0x33FF5C00),
-                                          blurRadius: 6,
+                                          blurRadius: 5,
                                           offset: Offset(0, 2),
                                         ),
                                       ],
                                     ),
                                     child: const Icon(
                                       Icons.camera_alt_rounded,
-                                      size: 18,
+                                      size: 15,
                                       color: Colors.white,
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 10),
+                              const SizedBox(height: 8),
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
                                     _hasProfilePhoto ? 'Profile Photo Added' : 'Upload Profile Picture',
                                     style: TextStyle(
-                                      fontSize: 14,
+                                      fontSize: 12.5,
                                       fontWeight: FontWeight.w600,
                                       color: _hasProfilePhoto
                                           ? const Color(0xFFFF5C00)
@@ -1157,11 +1157,11 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                       _buildFieldLabel('Mobile Number'),
                       Container(
                         width: double.infinity,
-                        height: 56,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        height: 44,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                             color: const Color(0xFFE2E8F0),
                             width: 1.2,
@@ -1171,7 +1171,7 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                         child: Text(
                           widget.phoneNumber,
                           style: const TextStyle(
-                            fontSize: 16,
+                            fontSize: 13.5,
                             fontWeight: FontWeight.w500,
                             color: Color(0xFF334155),
                           ),
@@ -1558,9 +1558,9 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                       // Next Gradient Button
                       Container(
                         width: double.infinity,
-                        height: 54,
+                        height: 44,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(10),
                           gradient: const LinearGradient(
                             colors: [
                               Color(0xFF0052FF), // Vibrant Blue
@@ -1572,8 +1572,8 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                           boxShadow: const [
                             BoxShadow(
                               color: Color(0x260052FF),
-                              blurRadius: 12,
-                              offset: Offset(0, 4),
+                              blurRadius: 10,
+                              offset: Offset(0, 3),
                             ),
                           ],
                         ),
@@ -1583,30 +1583,30 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
                             backgroundColor: Colors.transparent,
                             shadowColor: Colors.transparent,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(10),
                             ),
                           ),
                           child: _isLoading
                               ? const SizedBox(
-                                  width: 24,
-                                  height: 24,
+                                  width: 20,
+                                  height: 20,
                                   child: CircularProgressIndicator(
                                     color: Colors.white,
-                                    strokeWidth: 2.5,
+                                    strokeWidth: 2.2,
                                   ),
                                 )
                               : const Text(
                                   'Next',
                                   style: TextStyle(
                                     color: Colors.white,
-                                    fontSize: 16,
+                                    fontSize: 14,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                         ),
                       ),
 
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 28),
                     ],
                   ),
                 ),
@@ -1630,13 +1630,13 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        height: 56,
+        height: 42,
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isSelected ? const Color(0xFF0052FF) : const Color(0xFFE2E8F0),
-            width: isSelected ? 1.8 : 1.2,
+            width: isSelected ? 1.5 : 1.2,
           ),
         ),
         child: Row(
@@ -1644,15 +1644,15 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
           children: [
             Icon(
               icon,
-              size: 20,
+              size: 17,
               color: isSelected ? const Color(0xFF0052FF) : const Color(0xFF64748B),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 5),
             Flexible(
               child: Text(
                 gender,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 12,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                   color: isSelected ? const Color(0xFF0052FF) : const Color(0xFF334155),
                 ),
@@ -1667,14 +1667,14 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
 
   Widget _buildFieldLabel(String label, {bool isRequired = true}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0, left: 2.0),
+      padding: const EdgeInsets.only(bottom: 5.0, left: 2.0),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             label,
             style: const TextStyle(
-              fontSize: 14,
+              fontSize: 12.5,
               fontWeight: FontWeight.w700,
               color: Color(0xFF1E293B),
             ),
@@ -1683,7 +1683,7 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
             const Text(
               ' *',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 12.5,
                 fontWeight: FontWeight.w700,
                 color: Color(0xFFEF4444),
               ),
@@ -1709,16 +1709,16 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isFocused ? const Color(0xFF0052FF) : const Color(0xFFE2E8F0),
-          width: isFocused ? 1.8 : 1.2,
+          width: isFocused ? 1.5 : 1.2,
         ),
         boxShadow: isFocused
             ? [
                 const BoxShadow(
                   color: Color(0x1A0052FF),
-                  blurRadius: 8,
+                  blurRadius: 6,
                   offset: Offset(0, 2),
                 ),
               ]
@@ -1732,25 +1732,25 @@ class _RegistrationStep1ScreenState extends State<RegistrationStep1Screen> {
         maxLines: maxLines,
         validator: validator,
         style: const TextStyle(
-          fontSize: 15,
+          fontSize: 13.5,
           fontWeight: FontWeight.w500,
           color: Color(0xFF0F172A),
         ),
         decoration: InputDecoration(
           hintText: hintText,
           hintStyle: const TextStyle(
-            fontSize: 15,
+            fontSize: 13,
             color: Color(0xFF94A3B8),
             fontWeight: FontWeight.normal,
           ),
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 16,
+            horizontal: 14,
+            vertical: 12,
           ),
           border: InputBorder.none,
           suffixIcon: suffixIcon,
           errorStyle: const TextStyle(
-            fontSize: 12,
+            fontSize: 11,
             color: Color(0xFFEF4444),
           ),
         ),

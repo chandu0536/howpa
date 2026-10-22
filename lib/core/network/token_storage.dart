@@ -113,19 +113,28 @@ class TokenStorage {
     return prefs.getString(_keyUpiId);
   }
 
+  static String _kycSubmittedKey(String phoneDigits) => 'kyc_submitted_$phoneDigits';
+
+  /// Save persistent flag that KYC was submitted for this phone number
+  static Future<void> setKycSubmitted(String phoneDigits, bool submitted) async {
+    if (phoneDigits.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kycSubmittedKey(phoneDigits), submitted);
+  }
+
+  /// Check if KYC was previously submitted for this phone number
+  static Future<bool> isKycSubmitted(String phoneDigits) async {
+    if (phoneDigits.isEmpty) return false;
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_kycSubmittedKey(phoneDigits)) ?? false;
+  }
+
   /// Clear all stored tokens and session data on logout
   static Future<void> clear() async {
     _cachedToken = null;
     _cachedFcmToken = null;
     _cachedIsOnline = null;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_keyToken);
-    await prefs.remove(_keyPhone);
-    await prefs.remove(_keyIsOnline);
-    await prefs.remove(_keyUpiId);
-    await prefs.remove(_keyBankAcc);
-    await prefs.remove(_keyBankIfsc);
-    await prefs.remove(_keyBankHolder);
-    await prefs.remove(_keyBankName);
+    await prefs.clear();
   }
 }

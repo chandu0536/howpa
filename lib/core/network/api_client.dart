@@ -262,6 +262,7 @@ class ApiClient {
     required String url,
     Map<String, String>? fields,
     Map<String, File>? files,
+    List<http.MultipartFile>? customFiles,
     bool requiresAuth = true,
   }) async {
     final stopwatch = Stopwatch()..start();
@@ -291,6 +292,10 @@ class ApiClient {
             request.files.add(multipartFile);
           }
         }
+      }
+
+      if (customFiles != null && customFiles.isNotEmpty) {
+        request.files.addAll(customFiles);
       }
 
       ApiLogger.logRequest(

@@ -13,6 +13,8 @@ import '../../features/home/presentation/screens/nurse_dashboard_screen.dart';
 import '../../features/visits/presentation/screens/visits_screen.dart';
 import '../../features/vitals/presentation/screens/vitals_screen.dart';
 import '../../features/vitals/presentation/screens/update_vitals_screen.dart';
+import '../../features/vitals/presentation/screens/view_vitals_screen.dart';
+import '../../features/vitals/data/models/vitals_details_model.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
 import '../../features/profile/presentation/screens/personal_details_screen.dart';
 import '../../features/profile/presentation/screens/payment_earnings_screen.dart';
@@ -86,6 +88,24 @@ class AppRouter {
             orderId: args?['orderId'],
             patientName: args?['patientName'] ?? 'Patient',
             avatarUrl: args?['avatarUrl'] ?? 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150',
+          ),
+        );
+
+      case AppRoutes.viewVitals:
+        final args = settings.arguments;
+        if (args is PatientVitalsSummary) {
+          return MaterialPageRoute(
+            builder: (_) => ViewVitalsScreen(summary: args),
+          );
+        }
+        final mapArgs = args as Map<String, dynamic>?;
+        return MaterialPageRoute(
+          builder: (_) => ViewVitalsScreen(
+            summary: mapArgs?['summary'] as PatientVitalsSummary?,
+            appointmentId: mapArgs?['appointmentId'] as String?,
+            orderId: mapArgs?['orderId'] as String?,
+            patientName: mapArgs?['patientName'] as String?,
+            avatarUrl: mapArgs?['avatarUrl'] as String?,
           ),
         );
 

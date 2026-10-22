@@ -9,6 +9,7 @@ import 'package:howpa_nurse/features/home/presentation/screens/nurse_dashboard_s
 import 'package:howpa_nurse/features/auth/presentation/screens/onboarding_screen.dart';
 import 'package:howpa_nurse/features/auth/data/repositories/auth_repository.dart';
 import 'package:howpa_nurse/core/network/api_exceptions.dart';
+import 'package:howpa_nurse/core/services/push_notification_service.dart';
 import 'package:howpa_nurse/core/widgets/no_internet_widget.dart';
 import 'package:howpa_nurse/features/visits/data/models/visit_models.dart';
 
@@ -74,6 +75,9 @@ class _VerificationInProgressScreenState
   }
 
   Future<void> _loadInitialUserData() async {
+    // Ensure push notification token is registered so admin approval & updates reach this device
+    PushNotificationService.instance.syncTokenWithBackend();
+
     final incomingPhone = widget.registeredPhone ?? '';
     final storedPhone = await TokenStorage.getPhone() ?? '';
     final phone = incomingPhone.isNotEmpty ? incomingPhone : storedPhone;

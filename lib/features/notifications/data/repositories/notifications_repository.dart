@@ -62,15 +62,67 @@ class NotificationsRepositoryImpl implements NotificationsRepository {
 
   @override
   Future<bool> registerDeviceToken(DeviceTokenRegistrationRequest request) async {
+    bool registered = false;
+    final body = request.toJson();
+
+    // 1. Primary endpoint: /api/nurse/notifications/device-token
     try {
-      final response = await _client.post(ApiEndpoints.deviceToken, body: request.toJson());
-      if (response is Map && response['success'] == false) {
-        return false;
+      final response = await _client.post(ApiEndpoints.deviceToken, body: body);
+      if (response != null && (response is! Map || response['success'] != false)) {
+        registered = true;
       }
-      return true;
-    } catch (_) {
-      return false;
-    }
+    } catch (_) {}
+
+    // 2. Direct nurse device token endpoint: /api/nurse/device-token
+    try {
+      final response = await _client.post('${ApiEndpoints.baseUrl}/api/nurse/device-token', body: body);
+      if (response != null && (response is! Map || response['success'] != false)) {
+        registered = true;
+      }
+    } catch (_) {}
+
+    // 3. Direct nurse FCM token endpoint: /api/nurse/fcm-token
+    try {
+      final response = await _client.post('${ApiEndpoints.baseUrl}/api/nurse/fcm-token', body: body);
+      if (response != null && (response is! Map || response['success'] != false)) {
+        registered = true;
+      }
+    } catch (_) {}
+
+    // 4. Update nurse profile with fcmToken: PUT /api/nurse/profile
+    try {
+      final response = await _client.put(
+        ApiEndpoints.profile,
+        body: {
+          'fcmToken': request.token,
+          'deviceToken': request.token,
+          'pushToken': request.token,
+          'deviceType': 'android',
+          'platform': 'ANDROID',
+        },
+      );
+      if (response != null && (response is! Map || response['success'] != false)) {
+        registered = true;
+      }
+    } catch (_) {}
+
+    // 5. Update nurse settings with deviceToken: PUT /api/nurse/settings
+    try {
+      final response = await _client.put(
+        ApiEndpoints.settings,
+        body: {
+          'fcmToken': request.token,
+          'deviceToken': request.token,
+          'deviceType': 'android',
+          'platform': 'ANDROID',
+        },
+      );
+      if (response != null && (response is! Map || response['success'] != false)) {
+        registered = true;
+      }
+    } catch (_) {}
+
+    return registered;
   }
 
   @override

@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:howpa_nurse/features/vitals/data/models/vitals_details_model.dart';
 import 'package:howpa_nurse/features/visits/data/models/visit_models.dart';
+import '../screens/view_vitals_screen.dart';
 
 class ViewVitalsBottomSheet extends StatelessWidget {
   final PatientVitalsSummary summary;
@@ -13,23 +15,78 @@ class ViewVitalsBottomSheet extends StatelessWidget {
   });
 
   static void show(BuildContext context, PatientVitalsSummary summary) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => ViewVitalsBottomSheet(summary: summary),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ViewVitalsScreen(summary: summary),
+      ),
     );
   }
 
-  Widget _buildSafeImage(String path, {BoxFit fit = BoxFit.cover, double? width, double? height}) {
+  Widget _buildSafeImage(
+    String path, {
+    BoxFit fit = BoxFit.cover,
+    double? width,
+    double? height,
+    IconData fallbackIcon = Icons.broken_image_rounded,
+  }) {
     final clean = path.trim();
     if (clean.isEmpty || clean == 'null' || clean == 'undefined') {
       return Container(
         color: const Color(0xFFF1F5F9),
+        width: width,
+        height: height,
         alignment: Alignment.center,
-        child: const Icon(Icons.person_rounded, color: Color(0xFF94A3B8)),
+        child: Icon(fallbackIcon, color: const Color(0xFF94A3B8)),
       );
     }
+
+    // 1. Base64 data URI
+    if (clean.startsWith('data:image/')) {
+      try {
+        final commaIdx = clean.indexOf(',');
+        final base64Str = commaIdx != -1 ? clean.substring(commaIdx + 1) : clean;
+        return Image.memory(
+          base64Decode(base64Str),
+          fit: fit,
+          width: width,
+          height: height,
+          errorBuilder: (context, error, stackTrace) => Container(
+            color: const Color(0xFFF1F5F9),
+            width: width,
+            height: height,
+            alignment: Alignment.center,
+            child: Icon(fallbackIcon, color: const Color(0xFF94A3B8)),
+          ),
+        );
+      } catch (_) {}
+    }
+
+    // 2. Local device file check (MUST BE FIRST to load local photos instantly)
+    final localPath = clean.startsWith('file://') ? clean.substring(7) : clean;
+    if (!localPath.startsWith('http://') && !localPath.startsWith('https://')) {
+      try {
+        final file = File(localPath);
+        if (file.existsSync()) {
+          return Image.file(
+            file,
+            fit: fit,
+            width: width,
+            height: height,
+            cacheWidth: width != null ? (width * 2.5).toInt().clamp(50, 1200) : null,
+            errorBuilder: (context, error, stackTrace) => Container(
+              color: const Color(0xFFF1F5F9),
+              width: width,
+              height: height,
+              alignment: Alignment.center,
+              child: Icon(fallbackIcon, color: const Color(0xFF94A3B8)),
+            ),
+          );
+        }
+      } catch (_) {}
+    }
+
+    // 3. Remote URL
     final fullUrl = formatImageUrl(clean);
     if (fullUrl.startsWith('http://') || fullUrl.startsWith('https://')) {
       return Image.network(
@@ -37,41 +94,46 @@ class ViewVitalsBottomSheet extends StatelessWidget {
         fit: fit,
         width: width,
         height: height,
+        cacheWidth: width != null ? (width * 2.5).toInt().clamp(50, 1200) : null,
         errorBuilder: (context, error, stackTrace) => Container(
           color: const Color(0xFFF1F5F9),
+          width: width,
+          height: height,
           alignment: Alignment.center,
-          child: const Icon(Icons.person_rounded, color: Color(0xFF94A3B8)),
+          child: Icon(fallbackIcon, color: const Color(0xFF94A3B8)),
         ),
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            color: const Color(0xFFF8FAFC),
+            width: width,
+            height: height,
+            alignment: Alignment.center,
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                    : null,
+                color: const Color(0xFF0052FF),
+              ),
+            ),
+          );
+        },
       );
     }
-    try {
-      final file = File(clean.replaceFirst('file://', ''));
-      if (!file.existsSync()) {
-        return Container(
-          color: const Color(0xFFF1F5F9),
-          alignment: Alignment.center,
-          child: const Icon(Icons.person_rounded, color: Color(0xFF94A3B8)),
-        );
-      }
-      return Image.file(
-        file,
-        fit: fit,
-        width: width,
-        height: height,
-        cacheWidth: width != null ? (width * 2).toInt().clamp(50, 600) : 300,
-        errorBuilder: (context, error, stackTrace) => Container(
-          color: const Color(0xFFF1F5F9),
-          alignment: Alignment.center,
-          child: const Icon(Icons.person_rounded, color: Color(0xFF94A3B8)),
-        ),
-      );
-    } catch (_) {
-      return Container(
-        color: const Color(0xFFF1F5F9),
-        alignment: Alignment.center,
-        child: const Icon(Icons.person_rounded, color: Color(0xFF94A3B8)),
-      );
-    }
+
+    // 4. Fallback if path couldn't be resolved
+    return Container(
+      color: const Color(0xFFF1F5F9),
+      width: width,
+      height: height,
+      alignment: Alignment.center,
+      child: Icon(fallbackIcon, color: const Color(0xFF94A3B8)),
+    );
   }
 
   void _showImagePreview(BuildContext context, String title, String imageUrl) {
@@ -110,10 +172,14 @@ class ViewVitalsBottomSheet extends StatelessWidget {
               ClipRRect(
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
                 child: Container(
-                  constraints: const BoxConstraints(maxHeight: 380),
+                  constraints: const BoxConstraints(maxHeight: 440),
                   width: double.infinity,
                   color: Colors.black,
-                  child: _buildSafeImage(imageUrl, fit: BoxFit.contain),
+                  child: InteractiveViewer(
+                    minScale: 0.8,
+                    maxScale: 4.0,
+                    child: _buildSafeImage(imageUrl, fit: BoxFit.contain),
+                  ),
                 ),
               ),
             ],
@@ -124,18 +190,39 @@ class ViewVitalsBottomSheet extends StatelessWidget {
   }
 
   Future<void> _openDocument(BuildContext context, String url) async {
-    final uri = Uri.parse(url);
+    final clean = url.trim();
+    if (clean.isEmpty) return;
+
+    // Check local file first
+    final localPath = clean.startsWith('file://') ? clean.substring(7) : clean;
     try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        await launchUrl(uri);
+      final file = File(localPath);
+      if (file.existsSync()) {
+        final uri = Uri.file(localPath);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri);
+          return;
+        }
       }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open document: $e')),
-        );
+    } catch (_) {}
+
+    final formatted = formatImageUrl(clean);
+    final uri = Uri.tryParse(formatted) ?? Uri.tryParse(clean);
+    if (uri != null) {
+      try {
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          return;
+        } else {
+          await launchUrl(uri);
+          return;
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not open document: $e')),
+          );
+        }
       }
     }
   }
@@ -229,7 +316,10 @@ class ViewVitalsBottomSheet extends StatelessWidget {
                             child: SizedBox(
                               width: 48,
                               height: 48,
-                              child: _buildSafeImage(summary.patientAvatar),
+                              child: _buildSafeImage(
+                                summary.patientAvatar,
+                                fallbackIcon: Icons.person_rounded,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -425,7 +515,12 @@ class ViewVitalsBottomSheet extends StatelessWidget {
                                       child: Stack(
                                         alignment: Alignment.center,
                                         children: [
-                                          _buildSafeImage(v.fileUrl, width: 44, height: 44),
+                                          _buildSafeImage(
+                                            v.fileUrl,
+                                            width: 44,
+                                            height: 44,
+                                            fallbackIcon: Icons.photo_camera_back_outlined,
+                                          ),
                                           Container(
                                             color: Colors.black26,
                                             child: const Icon(Icons.zoom_in_rounded, color: Colors.white, size: 18),
@@ -474,7 +569,7 @@ class ViewVitalsBottomSheet extends StatelessWidget {
                                   child: Stack(
                                     fit: StackFit.expand,
                                     children: [
-                                      _buildSafeImage(photo.url),
+                                      _buildSafeImage(photo.url, fallbackIcon: Icons.image_outlined),
                                       Positioned(
                                         bottom: 0,
                                         left: 0,
@@ -510,6 +605,10 @@ class ViewVitalsBottomSheet extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       ...summary.oldReports.map((report) {
+                        final isImg = report.url.toLowerCase().contains('.jpg') ||
+                            report.url.toLowerCase().contains('.jpeg') ||
+                            report.url.toLowerCase().contains('.png') ||
+                            report.type.toLowerCase().contains('image');
                         return Container(
                           margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -524,30 +623,53 @@ class ViewVitalsBottomSheet extends StatelessWidget {
                                 width: 36,
                                 height: 36,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFF5F3FF),
+                                  color: isImg ? const Color(0xFFEFF6FF) : const Color(0xFFF5F3FF),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: const Icon(Icons.picture_as_pdf_rounded, color: Color(0xFF8B5CF6), size: 20),
+                                child: Icon(
+                                  isImg ? Icons.image_rounded : Icons.picture_as_pdf_rounded,
+                                  color: isImg ? const Color(0xFF0052FF) : const Color(0xFF8B5CF6),
+                                  size: 20,
+                                ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      report.name,
-                                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(report.type, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-                                  ],
+                                child: InkWell(
+                                  onTap: () {
+                                    if (isImg) {
+                                      _showImagePreview(context, report.name, report.url);
+                                    } else {
+                                      _openDocument(context, report.url);
+                                    }
+                                  },
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        report.name,
+                                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(report.type, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                                    ],
+                                  ),
                                 ),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.open_in_new_rounded, color: Color(0xFF0052FF), size: 20),
-                                onPressed: () => _openDocument(context, report.url),
+                                icon: Icon(
+                                  isImg ? Icons.zoom_in_rounded : Icons.open_in_new_rounded,
+                                  color: const Color(0xFF0052FF),
+                                  size: 20,
+                                ),
+                                onPressed: () {
+                                  if (isImg) {
+                                    _showImagePreview(context, report.name, report.url);
+                                  } else {
+                                    _openDocument(context, report.url);
+                                  }
+                                },
                               ),
                             ],
                           ),

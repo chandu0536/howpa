@@ -323,7 +323,7 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                                     child: Text(
                                       'Hi, $name ',
                                       style: const TextStyle(
-                                        fontSize: 18,
+                                        fontSize: 16,
                                         fontWeight: FontWeight.bold,
                                         color: Color(0xFF0F172A),
                                         letterSpacing: -0.3,
@@ -334,7 +334,7 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                                   ),
                                   const Text(
                                     '👋',
-                                    style: TextStyle(fontSize: 16),
+                                    style: TextStyle(fontSize: 14),
                                   ),
                                 ],
                               ),
@@ -342,7 +342,7 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                               const Text(
                                 'Ready to care and make a difference.',
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 11,
                                   color: Color(0xFF64748B),
                                   fontWeight: FontWeight.w400,
                                 ),
@@ -362,16 +362,16 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                         alignment: Alignment.topRight,
                         children: [
                           Container(
-                            width: 40,
-                            height: 40,
+                            width: 34,
+                            height: 34,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: const Color(0xFF0052FF),
-                              border: Border.all(color: Colors.white, width: 2),
+                              border: Border.all(color: Colors.white, width: 1.5),
                               boxShadow: const [
                                 BoxShadow(
                                   color: Color(0x1A0052FF),
-                                  blurRadius: 6,
+                                  blurRadius: 5,
                                   offset: Offset(0, 2),
                                 ),
                               ],
@@ -381,23 +381,23 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                               builder: (context, child) {
                                 return UserProfileManager.instance
                                     .buildAvatarWidget(
-                                      size: 40,
+                                      size: 34,
                                       fallbackBgColor: const Color(0xFFF1F5F9),
                                       fallbackIconColor: const Color(
                                         0xFF64748B,
                                       ),
-                                      iconSize: 22,
+                                      iconSize: 18,
                                     );
                               },
                             ),
                           ),
                           Container(
-                            width: 12,
-                            height: 12,
+                            width: 10,
+                            height: 10,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: const Color(0xFFFF5C00),
-                              border: Border.all(color: Colors.white, width: 2),
+                              border: Border.all(color: Colors.white, width: 1.5),
                             ),
                           ),
                         ],
@@ -455,67 +455,76 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          children: [
-                            // Concentric Pulse Target Circle Icon
-                            Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white.withValues(alpha: 0.2),
-                              ),
-                              child: Center(
-                                child: Container(
-                                  width: 18,
-                                  height: 18,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 1.8,
-                                    ),
-                                  ),
-                                  child: Center(
-                                    child: Container(
-                                      width: 8,
-                                      height: 8,
-                                      decoration: const BoxDecoration(
-                                        shape: BoxShape.circle,
+                        Expanded(
+                          child: Row(
+                            children: [
+                              // Concentric Pulse Target Circle Icon
+                              Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                ),
+                                child: Center(
+                                  child: Container(
+                                    width: 18,
+                                    height: 18,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
                                         color: Colors.white,
+                                        width: 1.8,
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: const BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: Colors.white,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 10),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _isOnline
-                                      ? "You're Online"
-                                      : "You're Offline",
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
+                              const SizedBox(width: 10),
+                              Flexible(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _isOnline
+                                          ? "You're Online"
+                                          : "You're Offline",
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    Text(
+                                      _isOnline
+                                          ? 'Tap to go Offline'
+                                          : 'Tap to go Online',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                Text(
-                                  _isOnline
-                                      ? 'Tap to go Offline'
-                                      : 'Tap to go Online',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.white70,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                              ),
+                            ],
+                          ),
                         ),
+                        const SizedBox(width: 10),
 
                         // Compact Switch Pill
                         AnimatedContainer(
@@ -574,8 +583,8 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                     children: [
                       // Compact Radar Scanner Graphic
                       SizedBox(
-                        width: 65,
-                        height: 65,
+                        width: 50,
+                        height: 50,
                         child: AnimatedBuilder(
                           animation: _radarAnimationController,
                           builder: (context, child) {
@@ -592,7 +601,7 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                         ),
                       ),
 
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
 
                       // Text Details
                       Expanded(
@@ -604,18 +613,18 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                                   ? 'Waiting for requests...'
                                   : 'Currently Offline',
                               style: const TextStyle(
-                                fontSize: 14,
+                                fontSize: 12.5,
                                 fontWeight: FontWeight.bold,
                                 color: Color(0xFF0F172A),
                               ),
                             ),
-                            const SizedBox(height: 3),
+                            const SizedBox(height: 2),
                             Text(
                               _isOnline
                                   ? "We'll notify you when a new visit request comes in."
                                   : "Turn online to start receiving patient visit requests.",
                               style: const TextStyle(
-                                fontSize: 11.5,
+                                fontSize: 10.5,
                                 color: Color(0xFF64748B),
                                 height: 1.3,
                               ),
@@ -634,16 +643,20 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                                   ),
                                 ),
                                 const SizedBox(width: 5),
-                                Text(
-                                  _isOnline
-                                      ? "You're receiving requests"
-                                      : "Not receiving requests",
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: _isOnline
-                                        ? const Color(0xFF04A74C)
-                                        : const Color(0xFF94A3B8),
+                                Flexible(
+                                  child: Text(
+                                    _isOnline
+                                        ? "You're receiving requests"
+                                        : "Not receiving requests",
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: _isOnline
+                                          ? const Color(0xFF04A74C)
+                                          : const Color(0xFF94A3B8),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -751,8 +764,8 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: SizedBox(
-                          width: 386,
-                          height: 126,
+                          width: 340,
+                          height: 108,
                           child: PageView.builder(
                             controller: _posterPageController,
                             onPageChanged: (index) {
@@ -770,11 +783,11 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                                   horizontal: 2.0,
                                 ),
                                 child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: BorderRadius.circular(14),
                                   child: Image.asset(
                                     posterImage,
-                                    width: 346,
-                                    height: 126,
+                                    width: 340,
+                                    height: 108,
                                     fit: BoxFit.cover,
                                   ),
                                 ),
@@ -973,15 +986,15 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: const Color(0xFFF1F5F9), width: 1.2),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 8,
+              blurRadius: 6,
               offset: const Offset(0, 2),
             ),
           ],
@@ -991,12 +1004,12 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
           children: [
             // Circle Icon Box
             Container(
-              width: 26,
-              height: 26,
+              width: 22,
+              height: 22,
               decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
-              child: Icon(icon, color: iconColor, size: 18),
+              child: Icon(icon, color: iconColor, size: 14),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             // Value
             FittedBox(
               fit: BoxFit.scaleDown,
@@ -1004,7 +1017,7 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
               child: Text(
                 value,
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: 15,
                   fontWeight: FontWeight.bold,
                   color: valueColor,
                 ),
@@ -1071,15 +1084,15 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
             if (mounted) _loadDashboardData();
           },
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(11),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: const Color(0xFFF1F5F9), width: 1.2),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 8,
+              blurRadius: 6,
               offset: const Offset(0, 2),
             ),
           ],
@@ -1093,8 +1106,8 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
               children: [
                 // Avatar
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: const Color(0xFFF1F5F9),
@@ -1104,11 +1117,11 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                     ),
                   ),
                   child: ClipOval(
-                    child: _buildAvatarWidget(avatarUrl, patientName, 48),
+                    child: _buildAvatarWidget(avatarUrl, patientName, 42),
                   ),
                 ),
 
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
 
                 // Patient Name & Time Column
                 Expanded(
@@ -1121,7 +1134,7 @@ class _NurseDashboardScreenState extends State<NurseDashboardScreen>
                             child: Text(
                               patientName,
                               style: const TextStyle(
-                                fontSize: 15,
+                                fontSize: 13,
                                 fontWeight: FontWeight.bold,
                                 color: Color(0xFF0F172A),
                               ),

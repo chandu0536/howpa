@@ -14,6 +14,7 @@ class AppRoutes {
   static const String visits = '/visits';
   static const String vitals = '/vitals';
   static const String updateVitals = '/update-vitals';
+  static const String viewVitals = '/view-vitals';
   static const String profile = '/profile';
   static const String personalDetails = '/personal-details';
   static const String paymentEarnings = '/payment-earnings';

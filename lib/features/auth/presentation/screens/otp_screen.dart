@@ -2,12 +2,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:howpa_nurse/core/network/api_exceptions.dart';
+import 'package:howpa_nurse/core/network/token_storage.dart';
 import 'package:howpa_nurse/features/auth/data/models/auth_models.dart';
 import 'package:howpa_nurse/features/auth/data/repositories/auth_repository.dart';
+import 'package:howpa_nurse/features/profile/data/repositories/profile_repository.dart';
 import 'package:howpa_nurse/features/home/presentation/screens/nurse_dashboard_screen.dart';
 import 'package:howpa_nurse/core/services/user_profile_manager.dart';
 import 'package:howpa_nurse/core/services/booking_notification_manager.dart';
 import 'package:howpa_nurse/features/visits/data/repositories/visits_repository.dart';
+import 'package:howpa_nurse/core/services/push_notification_service.dart';
 import 'phone_number_screen.dart';
 import 'registration_step1_screen.dart';
 import 'registration_step2_screen.dart';
@@ -134,10 +137,12 @@ class _OtpScreenState extends State<OtpScreen> {
 
     try {
       final fullPhone = '${widget.countryCode}${widget.phoneNumber}';
+      final fcmToken = await PushNotificationService.instance.fetchAndPrintToken();
       final response = await AuthRepositoryImpl().verifyOtp(
         VerifyOtpRequest(
           phone: fullPhone,
           otp: otpCode,
+          fcmToken: fcmToken,
           deviceType: 'android',
         ),
       );
@@ -162,6 +167,10 @@ class _OtpScreenState extends State<OtpScreen> {
         UserProfileManager.instance.reset();
         VisitsRepositoryImpl.clearAllCache();
         BookingNotificationManager.clearAll();
+        try {
+          PaintingBinding.instance.imageCache.clear();
+          PaintingBinding.instance.imageCache.clearLiveImages();
+        } catch (_) {}
 
         UserProfileManager.instance.updateProfileDetails(phoneNumber: fullPhone);
 
@@ -188,29 +197,59 @@ class _OtpScreenState extends State<OtpScreen> {
           );
         }
 
+        final cleanPhone = fullPhone.replaceAll(RegExp(r'\D'), '');
         final isApproved = user?.isApproved ?? false;
+        final isUnderReview = user?.isUnderReview ?? false;
         final hasFullName = user?.fullName != null && user!.fullName!.trim().isNotEmpty && user.fullName != 'Nurse';
-        final isProfileCompleted = (user?.isProfileCompleted ?? false) && hasFullName;
-        final isKycSubmitted = user?.isKycSubmitted ?? false;
+        final isProfileCompleted = (user?.isProfileCompleted ?? false) || hasFullName || isUnderReview;
+        bool isKycSubmitted = (user?.isKycSubmitted ?? false) || isUnderReview;
+
+        // Check local storage if this phone number previously submitted KYC on this device
+        if (!isKycSubmitted) {
+          final locallyRecorded = await TokenStorage.isKycSubmitted(cleanPhone);
+          if (locallyRecorded) {
+            isKycSubmitted = true;
+          }
+        }
+
+        // If user completed profile (Step 1) but KYC submission flag is still false,
+        // query document status from backend to verify if KYC docs exist or are under review
+        if (!isApproved && isProfileCompleted && !isKycSubmitted) {
+          try {
+            final docStatus = await ProfileRepositoryImpl().getDocumentsStatus();
+            if (docStatus.hasAnyDocumentUploaded || docStatus.isUnderReview) {
+              isKycSubmitted = true;
+              await TokenStorage.setKycSubmitted(cleanPhone, true);
+            }
+          } catch (e) {
+            debugPrint('Could not check document status on OTP verify: $e');
+          }
+        }
+
+        if (isUnderReview || isKycSubmitted) {
+          await TokenStorage.setKycSubmitted(cleanPhone, true);
+        }
 
         Widget targetScreen;
         if (isApproved) {
           // Existing Approved Nurse -> Go directly to Home Dashboard
           targetScreen = const NurseDashboardScreen();
+        } else if (isUnderReview || isKycSubmitted) {
+          // Both Step 1 & Step 2 completed -> Under Review Screen
+          targetScreen = VerificationInProgressScreen(registeredPhone: fullPhone);
         } else if (!isProfileCompleted) {
           // Step 1: Personal Details & Specialization
           targetScreen = RegistrationStep1Screen(
             phoneNumber: '${widget.countryCode} ${widget.phoneNumber}',
           );
-        } else if (!isKycSubmitted) {
+        } else {
           // Step 2: Upload Documents & KYC
           targetScreen = RegistrationStep2Screen(
             phoneNumber: '${widget.countryCode} ${widget.phoneNumber}',
           );
-        } else {
-          // Both Step 1 & Step 2 completed -> Under Review Screen
-          targetScreen = VerificationInProgressScreen(registeredPhone: fullPhone);
         }
+
+        if (!mounted) return;
 
         Navigator.pushAndRemoveUntil(
           context,
@@ -327,38 +366,38 @@ class _OtpScreenState extends State<OtpScreen> {
               // Top Logo
               Image.asset(
                 'assets/images/howpa_logo.png',
-                height: 95,
+                height: 70,
                 fit: BoxFit.contain,
               ),
 
-              const SizedBox(height: 48),
+              const SizedBox(height: 28),
 
               // Title
               const Text(
                 'Verify OTP',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 22,
+                  fontSize: 19,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF0F172A),
                   letterSpacing: -0.3,
                 ),
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
 
               // Subtitle with masked phone number
               Text(
                 'Code sent to ${_getMaskedPhoneNumber()}',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 12.5,
                   color: Color(0xFF64748B),
                   height: 1.4,
                 ),
               ),
 
-              const SizedBox(height: 36),
+              const SizedBox(height: 24),
 
               // 4-Digit Unified OTP Box Widget
               GestureDetector(
@@ -407,18 +446,18 @@ class _OtpScreenState extends State<OtpScreen> {
               ),
 
               if (_errorMessage != null) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 Text(
                   _errorMessage!,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     color: Color(0xFFEF4444),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
 
-              const SizedBox(height: 36),
+              const SizedBox(height: 24),
 
               // Resend OTP Countdown Timer / Button
               Row(
@@ -427,7 +466,7 @@ class _OtpScreenState extends State<OtpScreen> {
                   const Text(
                     'Resend OTP ',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 12.5,
                       color: Color(0xFF64748B),
                     ),
                   ),
@@ -435,7 +474,7 @@ class _OtpScreenState extends State<OtpScreen> {
                     Text(
                       'in 00:${_secondsRemaining.toString().padLeft(2, '0')}',
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 12.5,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF0052FF),
                       ),
@@ -446,7 +485,7 @@ class _OtpScreenState extends State<OtpScreen> {
                       child: const Text(
                         'Resend',
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: 12.5,
                           fontWeight: FontWeight.bold,
                           color: Color(0xFFFF5C00),
                           decoration: TextDecoration.underline,
@@ -456,14 +495,14 @@ class _OtpScreenState extends State<OtpScreen> {
                 ],
               ),
 
-              const SizedBox(height: 36),
+              const SizedBox(height: 24),
 
               // Verify Gradient Button
               Container(
                 width: double.infinity,
-                height: 54,
+                height: 44,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(10),
                   gradient: const LinearGradient(
                     colors: [
                       Color(0xFF0052FF), // Vibrant Blue
@@ -475,8 +514,8 @@ class _OtpScreenState extends State<OtpScreen> {
                   boxShadow: const [
                     BoxShadow(
                       color: Color(0x260052FF),
-                      blurRadius: 12,
-                      offset: Offset(0, 4),
+                      blurRadius: 10,
+                      offset: Offset(0, 3),
                     ),
                   ],
                 ),
@@ -486,15 +525,15 @@ class _OtpScreenState extends State<OtpScreen> {
                     backgroundColor: Colors.transparent,
                     shadowColor: Colors.transparent,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                   child: _isVerifying
                       ? const SizedBox(
-                          height: 22,
-                          width: 22,
+                          height: 20,
+                          width: 20,
                           child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
+                            strokeWidth: 2.2,
                             valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
@@ -502,14 +541,14 @@ class _OtpScreenState extends State<OtpScreen> {
                           'Verify',
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 16,
+                            fontSize: 14,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                 ),
               ),
 
-              const SizedBox(height: 40),
+              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -531,14 +570,14 @@ class _OtpScreenState extends State<OtpScreen> {
 
     if (_errorMessage != null) {
       borderColor = const Color(0xFFEF4444);
-      borderWidth = 1.8;
+      borderWidth = 1.5;
     } else if (isCurrentFocused) {
       borderColor = const Color(0xFF0052FF);
-      borderWidth = 1.8;
+      borderWidth = 1.5;
       boxShadow = const [
         BoxShadow(
           color: Color(0x1A0052FF),
-          blurRadius: 8,
+          blurRadius: 6,
           offset: Offset(0, 2),
         ),
       ];
@@ -548,13 +587,13 @@ class _OtpScreenState extends State<OtpScreen> {
     }
 
     return SizedBox(
-      width: 62,
-      height: 64,
+      width: 50,
+      height: 52,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: borderColor,
             width: borderWidth,
@@ -565,7 +604,7 @@ class _OtpScreenState extends State<OtpScreen> {
           child: Text(
             digit,
             style: const TextStyle(
-              fontSize: 22,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
               color: Color(0xFF0F172A),
               height: 1.0,

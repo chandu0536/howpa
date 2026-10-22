@@ -10,7 +10,7 @@ import 'package:howpa_nurse/core/services/user_profile_manager.dart';
 import 'package:howpa_nurse/core/services/booking_notification_manager.dart';
 import 'package:howpa_nurse/features/visits/data/models/visit_models.dart';
 import 'package:howpa_nurse/features/visits/data/repositories/visits_repository.dart';
-import 'package:howpa_nurse/features/vitals/presentation/widgets/view_vitals_bottom_sheet.dart';
+import 'package:howpa_nurse/features/vitals/presentation/screens/view_vitals_screen.dart';
 import 'package:howpa_nurse/features/vitals/data/models/vitals_details_model.dart';
 import 'package:howpa_nurse/core/network/api_exceptions.dart';
 
@@ -36,6 +36,7 @@ class NewRequestItem {
   final String? requestId;
   final String? orderId;
   final DateTime? scheduledDate;
+  final List<BookedServiceItem> bookedServices;
 
   NewRequestItem({
     required this.id,
@@ -58,6 +59,7 @@ class NewRequestItem {
     this.appointmentId,
     this.requestId,
     this.scheduledDate,
+    this.bookedServices = const [],
   });
 
   String get formattedAppointmentDate {
@@ -121,6 +123,7 @@ class TodayVisitItem {
   final String? requestId;
   final String? orderId;
   final DateTime? scheduledDate;
+  final List<BookedServiceItem> bookedServices;
 
   TodayVisitItem({
     required this.id,
@@ -148,6 +151,7 @@ class TodayVisitItem {
     this.appointmentId,
     this.requestId,
     this.scheduledDate,
+    this.bookedServices = const [],
   });
 
   String get formattedAppointmentDate {
@@ -210,6 +214,7 @@ class TodayVisitItem {
     String? requestId,
     String? orderId,
     DateTime? scheduledDate,
+    List<BookedServiceItem>? bookedServices,
   }) {
     return TodayVisitItem(
       id: id ?? this.id,
@@ -237,6 +242,7 @@ class TodayVisitItem {
       appointmentId: appointmentId ?? this.appointmentId,
       requestId: requestId ?? this.requestId,
       scheduledDate: scheduledDate ?? this.scheduledDate,
+      bookedServices: bookedServices ?? this.bookedServices,
     );
   }
 }
@@ -386,7 +392,10 @@ class _VisitsScreenState extends State<VisitsScreen> {
     if (ord1 != null && ord1.isNotEmpty && ord2 != null && ord2.isNotEmpty) {
       if (ord1 == ord2) return true;
     }
-    if (name1 != null &&
+    // NEVER collapse two distinct visits with different IDs into one
+    final hasDistinctIds = id1.isNotEmpty && id2.isNotEmpty && id1 != id2;
+    if (!hasDistinctIds &&
+        name1 != null &&
         name2 != null &&
         name1.isNotEmpty &&
         name2.isNotEmpty &&
@@ -590,6 +599,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
           appointmentId: r.appointmentId,
           requestId: r.requestId,
           scheduledDate: r.scheduledDate,
+          bookedServices: r.bookedServices,
         );
 
         if (r.id.isNotEmpty &&
@@ -669,6 +679,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
           appointmentId: t.appointmentId ?? existingItem?.appointmentId,
           requestId: t.requestId ?? existingItem?.requestId,
           scheduledDate: t.scheduledDate ?? existingItem?.scheduledDate,
+          bookedServices: t.bookedServices.isNotEmpty ? t.bookedServices : (existingItem?.bookedServices ?? const []),
         );
       }).toList();
 
@@ -883,6 +894,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
         relation: item.relation,
         bookedByName: item.bookedByName,
         scheduledDate: item.scheduledDate,
+        bookedServices: item.bookedServices,
       ),
       onAccept: () async {
         await _onAcceptRequest(item);
@@ -1059,6 +1071,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
       appointmentId: item.appointmentId,
       requestId: item.requestId,
       scheduledDate: item.scheduledDate,
+      bookedServices: item.bookedServices,
     );
 
     // 2. Optimistically update local state & immediately redirect to Today tab
@@ -1229,6 +1242,11 @@ class _VisitsScreenState extends State<VisitsScreen> {
           orderId: item.displayOrderId,
           patientName: item.patientName,
           avatarUrl: item.avatarUrl,
+          patientAge: item.patientAge,
+          patientGender: item.patientGender,
+          scheduledDate: item.scheduledDate,
+          time: item.timeInterval,
+          bookedServices: item.bookedServices,
         ),
       ),
     );
@@ -1315,14 +1333,14 @@ class _VisitsScreenState extends State<VisitsScreen> {
           children: [
             // Top App Bar Header
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
                     'Visits',
                     style: TextStyle(
-                      fontSize: 30,
+                      fontSize: 20,
                       fontWeight: FontWeight.w800,
                       color: Color(0xFF0F172A),
                       letterSpacing: -0.5,
@@ -1342,14 +1360,14 @@ class _VisitsScreenState extends State<VisitsScreen> {
                         icon: Icon(
                           _isSearching ? Icons.close_rounded : Icons.search_rounded,
                           color: const Color(0xFF0F172A),
-                          size: 26,
+                          size: 22,
                         ),
                       ),
                       const SizedBox(width: 4),
                       // Nurse Profile Avatar
                       Container(
-                        width: 42,
-                        height: 42,
+                        width: 36,
+                        height: 36,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: const Color(0xFF0052FF),
@@ -1366,10 +1384,10 @@ class _VisitsScreenState extends State<VisitsScreen> {
                           listenable: UserProfileManager.instance,
                           builder: (context, child) {
                             return UserProfileManager.instance.buildAvatarWidget(
-                              size: 40,
+                              size: 34,
                               fallbackBgColor: const Color(0xFF0052FF),
                               fallbackIconColor: Colors.white,
-                              iconSize: 24,
+                              iconSize: 20,
                             );
                           },
                         ),
@@ -1426,12 +1444,12 @@ class _VisitsScreenState extends State<VisitsScreen> {
             // Single Unified Search Bar for All Tabs
             if (_isSearching)
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                 child: Container(
-                  height: 44,
+                  height: 38,
                   decoration: BoxDecoration(
                     color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
                   child: TextField(
@@ -1445,16 +1463,16 @@ class _VisitsScreenState extends State<VisitsScreen> {
                       hintText: 'Search by patient name or address...',
                       hintStyle: const TextStyle(
                         color: Color(0xFF94A3B8),
-                        fontSize: 14,
+                        fontSize: 11,
                       ),
                       prefixIcon: const Icon(
                         Icons.search_rounded,
                         color: Color(0xFF94A3B8),
-                        size: 20,
+                        size: 18,
                       ),
                       suffixIcon: _searchQuery.isNotEmpty
                           ? IconButton(
-                              icon: const Icon(Icons.clear_rounded, size: 18, color: Color(0xFF94A3B8)),
+                              icon: const Icon(Icons.clear_rounded, size: 16, color: Color(0xFF94A3B8)),
                               onPressed: () {
                                 setState(() {
                                   _searchQuery = '';
@@ -1463,13 +1481,13 @@ class _VisitsScreenState extends State<VisitsScreen> {
                             )
                           : null,
                       border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 9),
                     ),
                   ),
                 ),
               ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
 
             // Pull Down to Refresh Row
             Center(
@@ -1478,14 +1496,14 @@ class _VisitsScreenState extends State<VisitsScreen> {
                 children: const [
                   Icon(
                     Icons.refresh_rounded,
-                    size: 16,
+                    size: 13,
                     color: Color(0xFF64748B),
                   ),
-                  SizedBox(width: 6),
+                  SizedBox(width: 5),
                   Text(
                     'Pull down to refresh',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 10,
                       color: Color(0xFF64748B),
                       fontWeight: FontWeight.w500,
                     ),
@@ -1494,7 +1512,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
               ),
             ),
 
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
 
             // Main Tab Content View Switcher
             Expanded(
@@ -1545,8 +1563,8 @@ class _VisitsScreenState extends State<VisitsScreen> {
           elevation: 0,
           selectedItemColor: const Color(0xFF0052FF),
           unselectedItemColor: const Color(0xFF94A3B8),
-          selectedLabelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-          unselectedLabelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.normal),
+          selectedLabelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+          unselectedLabelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.normal),
           items: const [
             BottomNavigationBarItem(
               icon: Icon(Icons.home_outlined, size: 22),
@@ -1586,7 +1604,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
         splashColor: const Color(0x15FF5C00),
         highlightColor: const Color(0x0AFF5C00),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10.0),
+          padding: const EdgeInsets.symmetric(vertical: 7.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
@@ -1599,7 +1617,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                     child: Text(
                       label,
                       style: TextStyle(
-                        fontSize: 13.5,
+                        fontSize: 11.5,
                         fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                         color: isSelected ? const Color(0xFFFF5C00) : const Color(0xFF64748B),
                       ),
@@ -1607,14 +1625,14 @@ class _VisitsScreenState extends State<VisitsScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const SizedBox(width: 5),
+                  const SizedBox(width: 4),
 
                   // Circle / Pill Badge
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    padding: const EdgeInsets.symmetric(horizontal: 4.5, vertical: 1),
                     constraints: const BoxConstraints(
-                      minWidth: 18,
-                      minHeight: 18,
+                      minWidth: 16,
+                      minHeight: 16,
                     ),
                     decoration: BoxDecoration(
                       color: badgeBg,
@@ -1622,11 +1640,11 @@ class _VisitsScreenState extends State<VisitsScreen> {
                     ),
                     alignment: Alignment.center,
                     child: badgeIcon != null
-                        ? Icon(badgeIcon, color: Colors.white, size: 11)
+                        ? Icon(badgeIcon, color: Colors.white, size: 10)
                         : Text(
                             badge,
                             style: const TextStyle(
-                              fontSize: 10.5,
+                              fontSize: 8.5,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
                               height: 1.1,
@@ -1635,13 +1653,13 @@ class _VisitsScreenState extends State<VisitsScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               // Active tab underline indicator bar
               AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 curve: Curves.easeInOut,
-                height: 3,
-                width: isSelected ? 48 : 0,
+                height: 2.5,
+                width: isSelected ? 40 : 0,
                 decoration: BoxDecoration(
                   color: isSelected ? const Color(0xFFFF5C00) : Colors.transparent,
                   borderRadius: BorderRadius.circular(2),
@@ -1686,14 +1704,14 @@ class _VisitsScreenState extends State<VisitsScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
                 'New Requests',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 13,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF0F172A),
                 ),
@@ -1701,7 +1719,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
               Text(
                 '${filtered.length} New',
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: 11,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFFFF5C00),
                 ),
@@ -1719,7 +1737,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                       child: const Center(
                         child: Text(
                           'No matching requests found',
-                          style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+                          style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
                         ),
                       ),
                     ),
@@ -1730,7 +1748,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                   addAutomaticKeepAlives: true,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   itemCount: filtered.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 16),
+                  separatorBuilder: (context, index) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     final item = filtered[index];
                     return _buildNewRequestCard(item);
@@ -1745,22 +1763,22 @@ class _VisitsScreenState extends State<VisitsScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFF1F5F9), width: 1),
         boxShadow: const [
           BoxShadow(
             color: Color(0x06000000),
-            blurRadius: 10,
+            blurRadius: 8,
             offset: Offset(0, 2),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         child: Stack(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(18.0, 14.0, 14.0, 14.0),
+              padding: const EdgeInsets.fromLTRB(14.0, 10.0, 12.0, 10.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1769,18 +1787,18 @@ class _VisitsScreenState extends State<VisitsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Container(
-                            width: 56,
-                            height: 56,
+                            width: 44,
+                            height: 44,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: const Color(0xFFF1F5F9),
-                              border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+                              border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
                             ),
                             child: ClipOval(
-                              child: _buildPatientAvatarWidget(item.avatarUrl, item.patientName, 56),
+                              child: _buildPatientAvatarWidget(item.avatarUrl, item.patientName, 44),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1791,7 +1809,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                       child: Text(
                                         item.patientName,
                                         style: const TextStyle(
-                                          fontSize: 16,
+                                          fontSize: 13,
                                           fontWeight: FontWeight.bold,
                                           color: Color(0xFF0F172A),
                                         ),
@@ -1802,10 +1820,10 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                     const SizedBox(width: 6),
                                     if (item.isFamilyMember)
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                                         decoration: BoxDecoration(
                                           color: const Color(0xFFEFF6FF),
-                                          borderRadius: BorderRadius.circular(6),
+                                          borderRadius: BorderRadius.circular(5),
                                           border: Border.all(color: const Color(0xFFBFDBFE)),
                                         ),
                                         child: Text(
@@ -1813,7 +1831,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                               ? item.relation!
                                               : 'Family Member',
                                           style: const TextStyle(
-                                            fontSize: 10,
+                                            fontSize: 8.5,
                                             fontWeight: FontWeight.bold,
                                             color: Color(0xFF2563EB),
                                           ),
@@ -1830,34 +1848,34 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                     bookedByName: item.bookedByName,
                                   ),
                                   style: const TextStyle(
-                                    fontSize: 11.5,
+                                    fontSize: 10,
                                     fontWeight: FontWeight.w600,
                                     color: Color(0xFF64748B),
                                   ),
                                 ),
                                 if (item.displayOrderId.isNotEmpty) ...[
-                                  const SizedBox(height: 4),
+                                  const SizedBox(height: 3),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFF1F5F9),
-                                      borderRadius: BorderRadius.circular(6),
+                                      borderRadius: BorderRadius.circular(5),
                                       border: Border.all(color: const Color(0xFFE2E8F0)),
                                     ),
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const Icon(Icons.tag_rounded, size: 11, color: Color(0xFF64748B)),
+                                        const Icon(Icons.tag_rounded, size: 10, color: Color(0xFF64748B)),
                                         const SizedBox(width: 3),
-                                          Flexible(
-                                            child: Text(
-                                              'Order ID: ${item.displayOrderId}',
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF334155),
+                                        Flexible(
+                                          child: Text(
+                                            'Order ID: ${item.displayOrderId}',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF334155),
                                             ),
                                           ),
                                         ),
@@ -1865,7 +1883,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                     ),
                                   ),
                                 ],
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 3),
                                 GestureDetector(
                                   onTap: () => _openGoogleMaps(item.latitude, item.longitude, item.address),
                                   child: Row(
@@ -1875,7 +1893,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                         padding: EdgeInsets.only(top: 2),
                                         child: Icon(
                                           Icons.location_on_rounded,
-                                          size: 14,
+                                          size: 13,
                                           color: Color(0xFF0052FF),
                                         ),
                                       ),
@@ -1884,7 +1902,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                         child: Text(
                                           item.address,
                                           style: const TextStyle(
-                                            fontSize: 12,
+                                            fontSize: 10,
                                             color: Color(0xFF64748B),
                                             height: 1.3,
                                           ),
@@ -1893,19 +1911,19 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                     ],
                                   ),
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 3),
                                 Row(
                                   children: [
                                     const Icon(
                                       Icons.near_me_rounded,
-                                      size: 13,
+                                      size: 12,
                                       color: Color(0xFF0052FF),
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
                                       item.distance,
                                       style: const TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 10,
                                         fontWeight: FontWeight.bold,
                                         color: Color(0xFF0052FF),
                                       ),
@@ -1918,18 +1936,18 @@ class _VisitsScreenState extends State<VisitsScreen> {
                         ],
                       ),
 
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 7),
 
                       // Service Tags & Preferences
                       Wrap(
-                        spacing: 6,
+                        spacing: 5,
                         runSpacing: 4,
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
                               color: const Color(0xFFFFF3EC),
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(10),
                               border: Border.all(color: const Color(0xFFFFD4BE), width: 0.8),
                             ),
                             child: Row(
@@ -1937,19 +1955,19 @@ class _VisitsScreenState extends State<VisitsScreen> {
                               children: [
                                 const Icon(
                                   Icons.link_rounded,
-                                  size: 13,
+                                  size: 12,
                                   color: Color(0xFFFF5C00),
                                 ),
-                                const SizedBox(width: 4),
-                                  Flexible(
-                                    child: Text(
-                                      item.serviceTag,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFFFF5C00),
+                                const SizedBox(width: 3),
+                                Flexible(
+                                  child: Text(
+                                    item.serviceTag,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFFFF5C00),
                                     ),
                                   ),
                                 ),
@@ -1958,10 +1976,10 @@ class _VisitsScreenState extends State<VisitsScreen> {
                           ),
                           if (item.femaleNursePreferred)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFDF2F8),
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(10),
                                 border: Border.all(color: const Color(0xFFFBCFE8), width: 0.8),
                               ),
                               child: Row(
@@ -1969,19 +1987,19 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                 children: const [
                                   Icon(
                                     Icons.female_rounded,
-                                    size: 13,
+                                    size: 12,
                                     color: Color(0xFFDB2777),
                                   ),
                                   SizedBox(width: 3),
-                                    Flexible(
-                                      child: Text(
-                                        'Female Nurse Preferred',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFFDB2777),
+                                  Flexible(
+                                    child: Text(
+                                      'Female Nurse Preferred',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFFDB2777),
                                       ),
                                     ),
                                   ),
@@ -1991,12 +2009,12 @@ class _VisitsScreenState extends State<VisitsScreen> {
                         ],
                       ),
 
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
 
-                      // Appointment Time & Date Container (Time displayed above Date/Day to prevent overlap)
+                      // Appointment Time & Date Container
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF8FAFC),
                           borderRadius: BorderRadius.circular(8),
@@ -2010,15 +2028,15 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                 children: [
                                   const Icon(
                                     Icons.access_time_rounded,
-                                    size: 13,
+                                    size: 12,
                                     color: Color(0xFF0052FF),
                                   ),
-                                  const SizedBox(width: 6),
+                                  const SizedBox(width: 5),
                                   Expanded(
                                     child: Text(
                                       _cleanDisplayTime(item.time),
                                       style: const TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 10.5,
                                         fontWeight: FontWeight.bold,
                                         color: Color(0xFF0052FF),
                                       ),
@@ -2028,21 +2046,21 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 3),
                             ],
                             Row(
                               children: [
                                 const Icon(
                                   Icons.calendar_month_rounded,
-                                  size: 13,
+                                  size: 12,
                                   color: Color(0xFF64748B),
                                 ),
-                                const SizedBox(width: 6),
+                                const SizedBox(width: 5),
                                 Expanded(
                                   child: Text(
                                     item.formattedAppointmentDate,
                                     style: const TextStyle(
-                                      fontSize: 11.5,
+                                      fontSize: 10,
                                       fontWeight: FontWeight.w600,
                                       color: Color(0xFF1E293B),
                                     ),
@@ -2056,41 +2074,44 @@ class _VisitsScreenState extends State<VisitsScreen> {
                         ),
                       ),
 
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 10),
 
                       // Action Buttons Row: Reject & Accept
                       Row(
                         children: [
                           // Reject Button
                           Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => _onRejectRequest(item),
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: Color(0xFFFF3B30), width: 1.2),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                            child: SizedBox(
+                              height: 38,
+                              child: OutlinedButton(
+                                onPressed: () => _onRejectRequest(item),
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(color: Color(0xFFFF3B30), width: 1.1),
+                                  padding: const EdgeInsets.symmetric(vertical: 6),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                 ),
-                              ),
-                              child: const Text(
-                                'Reject',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFFFF3B30),
+                                child: const Text(
+                                  'Reject',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFFFF3B30),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
 
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 10),
 
                           // Accept Button (Gradient)
                           Expanded(
                             child: Container(
-                              height: 46,
+                              height: 38,
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(10),
                                 gradient: const LinearGradient(
                                   colors: [Color(0xFF0052FF), Color(0xFFFF5C00)],
                                   begin: Alignment.centerLeft,
@@ -2099,8 +2120,8 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                 boxShadow: const [
                                   BoxShadow(
                                     color: Color(0x330052FF),
-                                    blurRadius: 8,
-                                    offset: Offset(0, 3),
+                                    blurRadius: 6,
+                                    offset: Offset(0, 2),
                                   ),
                                 ],
                               ),
@@ -2110,13 +2131,13 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                   backgroundColor: Colors.transparent,
                                   shadowColor: Colors.transparent,
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(10),
                                   ),
                                 ),
                                 child: const Text(
                                   'Accept',
                                   style: TextStyle(
-                                    fontSize: 15,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                     color: Colors.white,
                                   ),
@@ -2134,7 +2155,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                   top: 0,
                   bottom: 0,
                   left: 0,
-                  width: 4,
+                  width: 3.5,
                   child: Container(color: const Color(0xFFFF5C00)),
                 ),
               ],
@@ -2157,14 +2178,14 @@ class _VisitsScreenState extends State<VisitsScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
                 'Today’s Visits',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 13,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF0F172A),
                 ),
@@ -2172,7 +2193,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
               Text(
                 '${filtered.length} Visits',
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: 11,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF0052FF),
                 ),
@@ -2190,7 +2211,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                       child: const Center(
                         child: Text(
                           'No matching visits found',
-                          style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+                          style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
                         ),
                       ),
                     ),
@@ -2201,7 +2222,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                   addAutomaticKeepAlives: true,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   itemCount: filtered.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 16),
+                  separatorBuilder: (context, index) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     final item = filtered[index];
                     return _buildTodayVisitCard(item);
@@ -2226,7 +2247,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
       curve: Curves.easeOut,
       decoration: BoxDecoration(
         color: isHighlighted ? const Color(0xFFFFF7ED) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isHighlighted ? const Color(0xFFFF5C00) : const Color(0xFFF1F5F9),
           width: isHighlighted ? 2.0 : 1.0,
@@ -2235,23 +2256,23 @@ class _VisitsScreenState extends State<VisitsScreen> {
           if (isHighlighted)
             BoxShadow(
               color: const Color(0xFFFF5C00).withValues(alpha: 0.25),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
             )
           else
             const BoxShadow(
               color: Color(0x06000000),
-              blurRadius: 10,
+              blurRadius: 8,
               offset: Offset(0, 2),
             ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         child: Stack(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(18.0, 14.0, 14.0, 14.0),
+              padding: const EdgeInsets.fromLTRB(14.0, 10.0, 12.0, 10.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -2261,18 +2282,18 @@ class _VisitsScreenState extends State<VisitsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Container(
-                            width: 52,
-                            height: 52,
+                            width: 44,
+                            height: 44,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: const Color(0xFFF1F5F9),
-                              border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+                              border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
                             ),
                             child: ClipOval(
-                              child: _buildPatientAvatarWidget(item.avatarUrl, item.patientName, 52),
+                              child: _buildPatientAvatarWidget(item.avatarUrl, item.patientName, 44),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2283,7 +2304,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                       child: Text(
                                         item.patientName,
                                         style: const TextStyle(
-                                          fontSize: 16,
+                                          fontSize: 13,
                                           fontWeight: FontWeight.bold,
                                           color: Color(0xFF0F172A),
                                         ),
@@ -2294,10 +2315,10 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                     const SizedBox(width: 6),
                                     if (item.isFamilyMember)
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                                         decoration: BoxDecoration(
                                           color: const Color(0xFFEFF6FF),
-                                          borderRadius: BorderRadius.circular(6),
+                                          borderRadius: BorderRadius.circular(5),
                                           border: Border.all(color: const Color(0xFFBFDBFE)),
                                         ),
                                         child: Text(
@@ -2305,7 +2326,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                               ? item.relation!
                                               : 'Family Member',
                                           style: const TextStyle(
-                                            fontSize: 10,
+                                            fontSize: 8.5,
                                             fontWeight: FontWeight.bold,
                                             color: Color(0xFF2563EB),
                                           ),
@@ -2322,34 +2343,34 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                     bookedByName: item.bookedByName,
                                   ),
                                   style: const TextStyle(
-                                    fontSize: 11.5,
+                                    fontSize: 10,
                                     fontWeight: FontWeight.w600,
                                     color: Color(0xFF64748B),
                                   ),
                                 ),
                                 if (item.displayOrderId.isNotEmpty) ...[
-                                  const SizedBox(height: 4),
+                                  const SizedBox(height: 3),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFF1F5F9),
-                                      borderRadius: BorderRadius.circular(6),
+                                      borderRadius: BorderRadius.circular(5),
                                       border: Border.all(color: const Color(0xFFE2E8F0)),
                                     ),
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const Icon(Icons.tag_rounded, size: 11, color: Color(0xFF64748B)),
+                                        const Icon(Icons.tag_rounded, size: 10, color: Color(0xFF64748B)),
                                         const SizedBox(width: 3),
-                                          Flexible(
-                                            child: Text(
-                                              'Order ID: ${item.displayOrderId}',
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF334155),
+                                        Flexible(
+                                          child: Text(
+                                            'Order ID: ${item.displayOrderId}',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF334155),
                                             ),
                                           ),
                                         ),
@@ -2366,8 +2387,8 @@ class _VisitsScreenState extends State<VisitsScreen> {
                           GestureDetector(
                             onTap: () => _makePhoneCall(item.phoneNumber),
                             child: Container(
-                              width: 46,
-                              height: 46,
+                              width: 38,
+                              height: 38,
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFFF4ED),
                                 shape: BoxShape.circle,
@@ -2376,18 +2397,18 @@ class _VisitsScreenState extends State<VisitsScreen> {
                               child: const Icon(
                                 Icons.phone_rounded,
                                 color: Color(0xFFFF8A00),
-                                size: 22,
+                                size: 18,
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 7),
 
-                      // Appointment Time & Date Container (Full width across card: Time on TOP, Date & Day UNDER IT)
+                      // Appointment Time & Date Container
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                         decoration: BoxDecoration(
                           color: const Color(0xFFEFF6FF),
                           borderRadius: BorderRadius.circular(8),
@@ -2401,15 +2422,15 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                 children: [
                                   const Icon(
                                     Icons.access_time_rounded,
-                                    size: 13,
+                                    size: 12,
                                     color: Color(0xFF0052FF),
                                   ),
-                                  const SizedBox(width: 6),
+                                  const SizedBox(width: 5),
                                   Expanded(
                                     child: Text(
                                       _cleanDisplayTime(item.timeInterval),
                                       style: const TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 10.5,
                                         fontWeight: FontWeight.bold,
                                         color: Color(0xFF0052FF),
                                       ),
@@ -2419,21 +2440,21 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 3),
                             ],
                             Row(
                               children: [
                                 const Icon(
                                   Icons.calendar_month_rounded,
-                                  size: 13,
+                                  size: 12,
                                   color: Color(0xFF64748B),
                                 ),
-                                const SizedBox(width: 6),
+                                const SizedBox(width: 5),
                                 Expanded(
                                   child: Text(
                                     item.formattedAppointmentDate,
                                     style: const TextStyle(
-                                      fontSize: 11.5,
+                                      fontSize: 10,
                                       fontWeight: FontWeight.w600,
                                       color: Color(0xFF1E293B),
                                     ),
@@ -2447,7 +2468,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                         ),
                       ),
 
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
 
                       // Bottom Row: Address & Distance + Navigate Box (Bottom Right)
                       Row(
@@ -2467,37 +2488,37 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                         padding: EdgeInsets.only(top: 2),
                                         child: Icon(
                                           Icons.location_on_rounded,
-                                          size: 16,
+                                          size: 14,
                                           color: Color(0xFF0052FF),
                                         ),
                                       ),
-                                      const SizedBox(width: 6),
+                                      const SizedBox(width: 5),
                                       Expanded(
                                         child: Text(
                                           item.address,
                                           style: const TextStyle(
-                                            fontSize: 13,
+                                            fontSize: 10,
                                             color: Color(0xFF475569),
-                                            height: 1.35,
+                                            height: 1.3,
                                           ),
                                         ),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 6),
+                                  const SizedBox(height: 4),
                                   Row(
                                     children: [
                                       const SizedBox(width: 2),
                                       const Icon(
                                         Icons.near_me_rounded,
-                                        size: 14,
+                                        size: 12,
                                         color: Color(0xFF0052FF),
                                       ),
-                                      const SizedBox(width: 6),
+                                      const SizedBox(width: 5),
                                       Text(
                                         item.distance,
                                         style: const TextStyle(
-                                          fontSize: 13,
+                                          fontSize: 10,
                                           fontWeight: FontWeight.bold,
                                           color: Color(0xFF0052FF),
                                         ),
@@ -2514,11 +2535,11 @@ class _VisitsScreenState extends State<VisitsScreen> {
                           GestureDetector(
                             onTap: () => _openGoogleMaps(item.latitude, item.longitude, item.address),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                              constraints: const BoxConstraints(minWidth: 66, minHeight: 58),
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+                              constraints: const BoxConstraints(minWidth: 54, minHeight: 46),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFEFF6FF),
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(10),
                                 border: Border.all(color: const Color(0xFFDBEAFE)),
                               ),
                               child: Column(
@@ -2528,7 +2549,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                   Icon(
                                     Icons.near_me_outlined,
                                     color: Color(0xFF0052FF),
-                                    size: 18,
+                                    size: 16,
                                   ),
                                   SizedBox(height: 2),
                                   FittedBox(
@@ -2536,7 +2557,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                     child: Text(
                                       'Navigate',
                                       style: TextStyle(
-                                        fontSize: 11,
+                                        fontSize: 9,
                                         fontWeight: FontWeight.bold,
                                         color: Color(0xFF0052FF),
                                       ),
@@ -2549,14 +2570,14 @@ class _VisitsScreenState extends State<VisitsScreen> {
                         ],
                       ),
 
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 10),
 
                       // Full Width Action Button (Started -> Arrival -> Update Vitals -> Completed)
                       Container(
                         width: double.infinity,
-                        height: 46,
+                        height: 38,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10),
                           color: item.buttonText == 'Completed'
                               ? const Color(0xFF10B981)
                               : (item.buttonText == 'Update Vitals'
@@ -2573,9 +2594,9 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                           : (item.isArrivalButton
                                               ? const Color(0xFFFF5C00)
                                               : const Color(0xFF0052FF))))
-                                  .withValues(alpha: 0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
+                                  .withValues(alpha: 0.25),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
                             ),
                           ],
                         ),
@@ -2584,23 +2605,23 @@ class _VisitsScreenState extends State<VisitsScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.transparent,
                             shadowColor: Colors.transparent,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               if (item.buttonText == 'Completed')
-                                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 17),
                               if (item.buttonText == 'Update Vitals')
-                                const Icon(Icons.monitor_heart_rounded, color: Colors.white, size: 20),
+                                const Icon(Icons.monitor_heart_rounded, color: Colors.white, size: 17),
                               if (item.isArrivalButton)
-                                const Icon(Icons.exit_to_app_rounded, color: Colors.white, size: 20),
+                                const Icon(Icons.exit_to_app_rounded, color: Colors.white, size: 17),
                               if (item.buttonText == 'Started')
-                                const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20),
-                              const SizedBox(width: 8),
+                                const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 17),
+                              const SizedBox(width: 6),
                               Text(
                                 item.buttonText,
-                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
                               ),
                             ],
                           ),
@@ -2613,7 +2634,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                   top: 0,
                   bottom: 0,
                   left: 0,
-                  width: 4,
+                  width: 3.5,
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 1200),
                     curve: Curves.easeOut,
@@ -2644,7 +2665,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
             child: const Center(
               child: Text(
                 'No matching completed visits found',
-                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
               ),
             ),
           ),
@@ -2670,23 +2691,23 @@ class _VisitsScreenState extends State<VisitsScreen> {
           children: [
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              margin: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              margin: const EdgeInsets.symmetric(vertical: 5),
               decoration: BoxDecoration(
                 color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
                 group.key,
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: 11,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF334155),
                 ),
               ),
             ),
             ...filteredItems.map((item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 14.0),
+                  padding: const EdgeInsets.only(bottom: 10.0),
                   child: _buildCompletedVisitCard(item),
                 )),
           ],
@@ -2699,7 +2720,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFF1F5F9), width: 1),
         boxShadow: const [
           BoxShadow(
@@ -2710,11 +2731,11 @@ class _VisitsScreenState extends State<VisitsScreen> {
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         child: Stack(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(18.0, 14.0, 14.0, 14.0),
+              padding: const EdgeInsets.fromLTRB(14.0, 10.0, 12.0, 10.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -2723,18 +2744,18 @@ class _VisitsScreenState extends State<VisitsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Container(
-                            width: 52,
-                            height: 52,
+                            width: 44,
+                            height: 44,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: const Color(0xFFF1F5F9),
                               border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
                             ),
                             child: ClipOval(
-                              child: _buildPatientAvatarWidget(item.avatarUrl, item.patientName, 52),
+                              child: _buildPatientAvatarWidget(item.avatarUrl, item.patientName, 44),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2745,7 +2766,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                       child: Text(
                                         item.patientName,
                                         style: const TextStyle(
-                                          fontSize: 16,
+                                          fontSize: 13,
                                           fontWeight: FontWeight.bold,
                                           color: Color(0xFF0F172A),
                                         ),
@@ -2756,10 +2777,10 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                     const SizedBox(width: 6),
                                     if (item.isFamilyMember)
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                                         decoration: BoxDecoration(
                                           color: const Color(0xFFEFF6FF),
-                                          borderRadius: BorderRadius.circular(6),
+                                          borderRadius: BorderRadius.circular(5),
                                           border: Border.all(color: const Color(0xFFBFDBFE)),
                                         ),
                                         child: Text(
@@ -2767,7 +2788,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                               ? item.relation!
                                               : 'Family Member',
                                           style: const TextStyle(
-                                            fontSize: 10,
+                                            fontSize: 8.5,
                                             fontWeight: FontWeight.bold,
                                             color: Color(0xFF2563EB),
                                           ),
@@ -2784,34 +2805,34 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                     bookedByName: item.bookedByName,
                                   ),
                                   style: const TextStyle(
-                                    fontSize: 11.5,
+                                    fontSize: 10,
                                     fontWeight: FontWeight.w600,
                                     color: Color(0xFF64748B),
                                   ),
                                 ),
                                 if (item.displayOrderId.isNotEmpty) ...[
-                                  const SizedBox(height: 3),
+                                  const SizedBox(height: 2),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFF1F5F9),
-                                      borderRadius: BorderRadius.circular(6),
+                                      borderRadius: BorderRadius.circular(5),
                                       border: Border.all(color: const Color(0xFFE2E8F0)),
                                     ),
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const Icon(Icons.tag_rounded, size: 11, color: Color(0xFF64748B)),
+                                        const Icon(Icons.tag_rounded, size: 10, color: Color(0xFF64748B)),
                                         const SizedBox(width: 3),
-                                          Flexible(
-                                            child: Text(
-                                              'Order ID: ${item.displayOrderId}',
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF334155),
+                                        Flexible(
+                                          child: Text(
+                                            'Order ID: ${item.displayOrderId}',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF334155),
                                             ),
                                           ),
                                         ),
@@ -2824,15 +2845,15 @@ class _VisitsScreenState extends State<VisitsScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 7),
 
                       // Appointment Time & Date Container (Full width across card: Time on TOP, Date & Day UNDER IT)
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                         decoration: BoxDecoration(
                           color: const Color(0xFFECFDF5),
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(6),
                           border: Border.all(color: const Color(0xFFA7F3D0)),
                         ),
                         child: Column(
@@ -2843,15 +2864,15 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                 children: [
                                   const Icon(
                                     Icons.access_time_rounded,
-                                    size: 13,
+                                    size: 12,
                                     color: Color(0xFF059669),
                                   ),
-                                  const SizedBox(width: 6),
+                                  const SizedBox(width: 5),
                                   Expanded(
                                     child: Text(
                                       _cleanDisplayTime(item.dateTime),
                                       style: const TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 10.5,
                                         fontWeight: FontWeight.bold,
                                         color: Color(0xFF059669),
                                       ),
@@ -2861,21 +2882,21 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 3),
                             ],
                             Row(
                               children: [
                                 const Icon(
                                   Icons.calendar_month_rounded,
-                                  size: 13,
+                                  size: 12,
                                   color: Color(0xFF047857),
                                 ),
-                                const SizedBox(width: 6),
+                                const SizedBox(width: 5),
                                 Expanded(
                                   child: Text(
                                     item.formattedAppointmentDate,
                                     style: const TextStyle(
-                                      fontSize: 11.5,
+                                      fontSize: 10,
                                       fontWeight: FontWeight.w600,
                                       color: Color(0xFF065F46),
                                     ),
@@ -2889,7 +2910,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                         ),
                       ),
 
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
 
                       // Bottom Row: Doctor Name & Address
                       Column(
@@ -2899,15 +2920,15 @@ class _VisitsScreenState extends State<VisitsScreen> {
                             children: [
                               const Icon(
                                 Icons.medical_services_outlined,
-                                size: 14,
+                                size: 13,
                                 color: Color(0xFF10B981),
                               ),
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 5),
                               Expanded(
                                 child: Text(
                                   'Doctor: ${item.doctorName}',
                                   style: const TextStyle(
-                                    fontSize: 12.5,
+                                    fontSize: 10.5,
                                     fontWeight: FontWeight.w600,
                                     color: Color(0xFF334155),
                                   ),
@@ -2915,7 +2936,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 3),
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -2923,16 +2944,16 @@ class _VisitsScreenState extends State<VisitsScreen> {
                                 padding: EdgeInsets.only(top: 2),
                                 child: Icon(
                                   Icons.location_on_rounded,
-                                  size: 14,
+                                  size: 13,
                                   color: Color(0xFF10B981),
                                 ),
                               ),
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 5),
                               Expanded(
                                 child: Text(
                                   item.address,
                                   style: const TextStyle(
-                                    fontSize: 12,
+                                    fontSize: 10,
                                     color: Color(0xFF64748B),
                                     height: 1.3,
                                   ),
@@ -2943,30 +2964,58 @@ class _VisitsScreenState extends State<VisitsScreen> {
                         ],
                       ),
 
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
 
                       // View Vitals & Reports Action Button
                       SizedBox(
                         width: double.infinity,
-                        height: 40,
+                        height: 34,
                         child: OutlinedButton.icon(
                           onPressed: () async {
                             PatientVitalsSummary? summary = item.vitalsSummary;
-                            summary ??= await _visitsRepo.getVitalsForAppointment(item.id);
-                            summary ??= await _visitsRepo.getVitalsForAppointment(item.patientName);
+                            final aptId = item.appointmentId;
+                            if (summary == null && aptId != null && aptId.trim().isNotEmpty) {
+                              summary = await _visitsRepo.getVitalsForAppointment(aptId);
+                            }
+                            if (summary == null && item.id.trim().isNotEmpty) {
+                              summary = await _visitsRepo.getVitalsForAppointment(item.id);
+                            }
+                            final reqId = item.requestId;
+                            if (summary == null && reqId != null && reqId.trim().isNotEmpty) {
+                              summary = await _visitsRepo.getVitalsForAppointment(reqId);
+                            }
+                            final ordId = item.orderId;
+                            if (summary == null && ordId != null && ordId.trim().isNotEmpty) {
+                              summary = await _visitsRepo.getVitalsForAppointment(ordId);
+                            }
+                            if (summary == null && item.patientName.trim().isNotEmpty) {
+                              summary = await _visitsRepo.getVitalsForAppointment(item.patientName);
+                            }
                             if (summary != null && mounted) {
-                              ViewVitalsBottomSheet.show(context, summary);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ViewVitalsScreen(summary: summary!),
+                                ),
+                              );
+                            } else if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('No vitals or reports recorded for this visit.'),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
                             }
                           },
                           icon: const Icon(
                             Icons.monitor_heart_outlined,
-                            size: 17,
+                            size: 15,
                             color: Color(0xFF10B981),
                           ),
                           label: const Text(
                             'View Vitals & Reports',
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: 11,
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF10B981),
                             ),
@@ -2975,7 +3024,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                             backgroundColor: const Color(0xFFECFDF5),
                             side: const BorderSide(color: Color(0xFFA7F3D0)),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(8),
                             ),
                           ),
                         ),
@@ -2987,7 +3036,7 @@ class _VisitsScreenState extends State<VisitsScreen> {
                   top: 0,
                   bottom: 0,
                   left: 0,
-                  width: 4,
+                  width: 3.5,
                   child: Container(color: const Color(0xFF10B981)),
                 ),
               ],

@@ -19,12 +19,24 @@ class VitalItemEntry {
   });
 
   factory VitalItemEntry.fromJson(Map<String, dynamic> json) => VitalItemEntry(
-        name: json['name']?.toString() ?? '',
-        value: json['value']?.toString() ?? '',
+        name: json['name']?.toString() ?? json['vitalName']?.toString() ?? json['title']?.toString() ?? '',
+        value: json['value']?.toString() ?? json['reading']?.toString() ?? '',
         unit: json['unit']?.toString() ?? '',
-        details: json['details']?.toString() ?? '',
+        details: json['details']?.toString() ?? json['notes']?.toString() ?? '',
         status: json['status']?.toString() ?? 'Normal',
-        fileUrl: json['fileUrl']?.toString() ?? json['url']?.toString() ?? '',
+        fileUrl: json['fileUrl']?.toString() ??
+            json['url']?.toString() ??
+            json['imageUrl']?.toString() ??
+            json['image']?.toString() ??
+            json['photo']?.toString() ??
+            json['photoUrl']?.toString() ??
+            json['meterPhoto']?.toString() ??
+            json['meterPhotoUrl']?.toString() ??
+            json['meterImage']?.toString() ??
+            json['path']?.toString() ??
+            json['filePath']?.toString() ??
+            json['proofUrl']?.toString() ??
+            '',
       );
 
   Map<String, dynamic> toJson() => {
@@ -44,8 +56,16 @@ class ConditionPhotoEntry {
   ConditionPhotoEntry({required this.url, this.caption = ''});
 
   factory ConditionPhotoEntry.fromJson(Map<String, dynamic> json) => ConditionPhotoEntry(
-        url: json['url']?.toString() ?? '',
-        caption: json['caption']?.toString() ?? '',
+        url: json['url']?.toString() ??
+            json['imageUrl']?.toString() ??
+            json['image']?.toString() ??
+            json['photo']?.toString() ??
+            json['photoUrl']?.toString() ??
+            json['path']?.toString() ??
+            json['filePath']?.toString() ??
+            json['fileUrl']?.toString() ??
+            '',
+        caption: json['caption']?.toString() ?? json['title']?.toString() ?? json['description']?.toString() ?? '',
       );
 
   Map<String, dynamic> toJson() => {
@@ -62,9 +82,17 @@ class OldReportEntry {
   OldReportEntry({required this.url, required this.name, this.type = 'Report'});
 
   factory OldReportEntry.fromJson(Map<String, dynamic> json) => OldReportEntry(
-        url: json['url']?.toString() ?? '',
-        name: json['name']?.toString() ?? 'Medical Report',
-        type: json['type']?.toString() ?? 'PDF Report',
+        url: json['url']?.toString() ??
+            json['fileUrl']?.toString() ??
+            json['documentUrl']?.toString() ??
+            json['reportUrl']?.toString() ??
+            json['imageUrl']?.toString() ??
+            json['image']?.toString() ??
+            json['path']?.toString() ??
+            json['filePath']?.toString() ??
+            '',
+        name: json['name']?.toString() ?? json['fileName']?.toString() ?? json['title']?.toString() ?? 'Medical Report',
+        type: json['type']?.toString() ?? json['fileType']?.toString() ?? 'Medical Report',
       );
 
   Map<String, dynamic> toJson() => {
@@ -116,16 +144,50 @@ class PatientVitalsSummary {
   });
 
   factory PatientVitalsSummary.fromJson(Map<String, dynamic> json) {
-    final rawVitals = json['vitals'] as List? ?? [];
-    final rawPhotos = json['conditionPhotos'] as List? ?? json['condition_photos'] as List? ?? json['conditionImages'] as List? ?? [];
-    final rawReports = json['oldReports'] as List? ?? json['old_reports'] as List? ?? json['reports'] as List? ?? [];
+    dynamic rawVitals = json['vitals'] ?? json['vitalSigns'] ?? json['vital_items'];
+    if (rawVitals is String && rawVitals.trim().isNotEmpty) {
+      try {
+        rawVitals = jsonDecode(rawVitals);
+      } catch (_) {}
+    }
+    final List vitalsList = rawVitals is List ? rawVitals : [];
+
+    dynamic rawPhotos = json['conditionPhotos'] ??
+        json['condition_photos'] ??
+        json['conditionImages'] ??
+        json['condition_images'] ??
+        json['woundPhotos'] ??
+        json['wound_photos'] ??
+        json['photos'];
+    if (rawPhotos is String && rawPhotos.trim().isNotEmpty) {
+      try {
+        rawPhotos = jsonDecode(rawPhotos);
+      } catch (_) {}
+    }
+    final List photosList = rawPhotos is List ? rawPhotos : [];
+
+    dynamic rawReports = json['oldReports'] ??
+        json['old_reports'] ??
+        json['reports'] ??
+        json['medicalReports'] ??
+        json['report_files'] ??
+        json['reportFiles'] ??
+        json['documents'];
+    if (rawReports is String && rawReports.trim().isNotEmpty) {
+      try {
+        rawReports = jsonDecode(rawReports);
+      } catch (_) {}
+    }
+    final List reportsList = rawReports is List ? rawReports : [];
 
     final List<VitalItemEntry> parsedVitals = [];
 
-    if (rawVitals.isNotEmpty) {
-      for (final item in rawVitals) {
+    if (vitalsList.isNotEmpty) {
+      for (final item in vitalsList) {
         if (item is Map<String, dynamic>) {
           parsedVitals.add(VitalItemEntry.fromJson(item));
+        } else if (item is Map) {
+          parsedVitals.add(VitalItemEntry.fromJson(Map<String, dynamic>.from(item)));
         }
       }
     }
@@ -201,7 +263,7 @@ class PatientVitalsSummary {
               name: cv['type']?.toString() ?? cv['name']?.toString() ?? 'Custom Vital',
               value: cv['value']?.toString() ?? '',
               unit: cv['unit']?.toString() ?? '',
-              fileUrl: cv['imagePath']?.toString() ?? cv['fileUrl']?.toString() ?? '',
+              fileUrl: cv['imagePath']?.toString() ?? cv['fileUrl']?.toString() ?? cv['url']?.toString() ?? '',
             ));
           }
         }
@@ -209,22 +271,29 @@ class PatientVitalsSummary {
     }
 
     final List<ConditionPhotoEntry> parsedPhotos = [];
-    for (final item in rawPhotos) {
+    for (int i = 0; i < photosList.length; i++) {
+      final item = photosList[i];
       if (item is Map<String, dynamic>) {
         parsedPhotos.add(ConditionPhotoEntry.fromJson(item));
+      } else if (item is Map) {
+        parsedPhotos.add(ConditionPhotoEntry.fromJson(Map<String, dynamic>.from(item)));
       } else if (item is String && item.isNotEmpty) {
-        parsedPhotos.add(ConditionPhotoEntry(url: item, caption: 'Condition Photo'));
+        parsedPhotos.add(ConditionPhotoEntry(url: item, caption: 'Condition Photo #${i + 1}'));
       }
     }
 
     final List<OldReportEntry> parsedReports = [];
-    for (final item in rawReports) {
+    for (int i = 0; i < reportsList.length; i++) {
+      final item = reportsList[i];
       if (item is Map<String, dynamic>) {
         parsedReports.add(OldReportEntry.fromJson(item));
+      } else if (item is Map) {
+        parsedReports.add(OldReportEntry.fromJson(Map<String, dynamic>.from(item)));
       } else if (item is String && item.isNotEmpty) {
+        final fileName = item.split(RegExp(r'[/\\]')).last;
         parsedReports.add(OldReportEntry(
           url: item,
-          name: item.split(RegExp(r'[/\\]')).last,
+          name: fileName.isNotEmpty ? fileName : 'Report #${i + 1}',
           type: item.toLowerCase().endsWith('.pdf') ? 'PDF Report' : 'Medical Report',
         ));
       }

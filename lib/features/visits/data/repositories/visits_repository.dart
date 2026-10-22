@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:http/http.dart' as http;
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/network/api_exceptions.dart';
@@ -22,6 +23,14 @@ abstract class VisitsRepository {
   Future<bool> rejectVisitRequest(String appointmentId, {String? reason});
   Future<bool> updateVisitStatus(String appointmentId, String status);
   Future<bool> recordPatientVitals(RecordVitalsRequest request);
+  Future<bool> submitNurseScreening({
+    required String requestId,
+    required String notes,
+    String? reason,
+    required List<DynamicVitalItem> vitals,
+    List<String> conditionImages = const [],
+    List<String> oldReportFiles = const [],
+  });
   Future<List<dynamic>> getVitalsHistory({String? search, String? appointmentId});
   Future<PatientVitalsSummary?> getVitalsForAppointment(String appointmentId);
   Future<List<PatientVitalsSummary>> getVitalsHistorySummaries({String? search});
@@ -115,7 +124,10 @@ class VisitsRepositoryImpl implements VisitsRepository {
     if (a.orderId != null && a.orderId!.isNotEmpty && b.orderId != null && b.orderId!.isNotEmpty) {
       if (a.orderId == b.orderId) return true;
     }
-    if (a.patientName.isNotEmpty &&
+    // NEVER collapse two distinct visits with different IDs into one
+    final hasDistinctIds = a.id.isNotEmpty && b.id.isNotEmpty && a.id != b.id;
+    if (!hasDistinctIds &&
+        a.patientName.isNotEmpty &&
         b.patientName.isNotEmpty &&
         a.patientName.toLowerCase() != 'patient' &&
         a.patientName.trim().toLowerCase() == b.patientName.trim().toLowerCase()) {
@@ -704,7 +716,15 @@ class VisitsRepositoryImpl implements VisitsRepository {
     if (summary.id.isNotEmpty) _cachedVitalsSummaries[summary.id] = summary;
     if (summary.appointmentId.isNotEmpty) _cachedVitalsSummaries[summary.appointmentId] = summary;
     if (summary.requestId.isNotEmpty) _cachedVitalsSummaries[summary.requestId] = summary;
-    if (summary.patientName.isNotEmpty) _cachedVitalsSummaries[summary.patientName.toLowerCase()] = summary;
+    if (summary.orderId != null && summary.orderId!.trim().isNotEmpty) {
+      _cachedVitalsSummaries[summary.orderId!.trim()] = summary;
+    }
+    if (summary.displayOrderId.isNotEmpty) {
+      _cachedVitalsSummaries[summary.displayOrderId.trim()] = summary;
+    }
+    if (summary.patientName.trim().isNotEmpty) {
+      _cachedVitalsSummaries[summary.patientName.trim().toLowerCase()] = summary;
+    }
   }
 
   @override
@@ -782,6 +802,21 @@ class VisitsRepositoryImpl implements VisitsRepository {
         status: 'Normal',
         fileUrl: request.vitalImages?['Weight'] ?? '',
       ));
+    }
+
+    if (request.dynamicVitals != null) {
+      for (final dv in request.dynamicVitals!) {
+        if (dv.name.trim().isNotEmpty && dv.value.trim().isNotEmpty) {
+          vitalsList.add(VitalItemEntry(
+            name: dv.name.trim(),
+            value: dv.value.trim(),
+            unit: dv.unit.trim(),
+            details: 'Nurse Measured Vital',
+            status: 'Normal',
+            fileUrl: dv.meterPhoto?.path ?? '',
+          ));
+        }
+      }
     }
 
     if (request.customVitals != null) {
@@ -862,6 +897,21 @@ class VisitsRepositoryImpl implements VisitsRepository {
       };
 
       final filesMap = <String, File>{};
+      final List<http.MultipartFile> customMultipartFiles = [];
+
+      // 1. Dynamic vitals meter screen photos (vital_photo_0, vital_photo_1, etc.)
+      if (request.dynamicVitals != null) {
+        for (int i = 0; i < request.dynamicVitals!.length; i++) {
+          final dv = request.dynamicVitals![i];
+          if (dv.meterPhoto != null && dv.meterPhoto!.existsSync()) {
+            final mf = await http.MultipartFile.fromPath(
+              'vital_photo_$i',
+              dv.meterPhoto!.path,
+            );
+            customMultipartFiles.add(mf);
+          }
+        }
+      }
 
       final vitalImages = request.vitalImages;
       if (vitalImages != null) {
@@ -881,6 +931,8 @@ class VisitsRepositoryImpl implements VisitsRepository {
           if (!file.existsSync()) continue;
           filesMap['condition_photos[$i]'] = file;
           filesMap['wound_photos[$i]'] = file;
+          final mf = await http.MultipartFile.fromPath('condition_photos', file.path);
+          customMultipartFiles.add(mf);
         }
       }
 
@@ -891,6 +943,8 @@ class VisitsRepositoryImpl implements VisitsRepository {
           if (!file.existsSync()) continue;
           filesMap['old_reports[$i]'] = file;
           filesMap['patient_reports[$i]'] = file;
+          final mf = await http.MultipartFile.fromPath('old_reports', file.path);
+          customMultipartFiles.add(mf);
         }
       }
 
@@ -911,18 +965,40 @@ class VisitsRepositoryImpl implements VisitsRepository {
         }
       }
 
-      if (filesMap.isNotEmpty) {
+      if (filesMap.isNotEmpty || customMultipartFiles.isNotEmpty) {
         await _client.multipartRequest(
           method: 'POST',
           url: ApiEndpoints.vitals,
           fields: request.toFormFields(),
           files: filesMap,
+          customFiles: customMultipartFiles,
         );
       } else {
         await _client.post(ApiEndpoints.vitals, body: request.toJson());
       }
     } catch (_) {}
     return true;
+  }
+
+  @override
+  Future<bool> submitNurseScreening({
+    required String requestId,
+    required String notes,
+    String? reason,
+    required List<DynamicVitalItem> vitals,
+    List<String> conditionImages = const [],
+    List<String> oldReportFiles = const [],
+  }) async {
+    return recordPatientVitals(
+      RecordVitalsRequest(
+        appointmentId: requestId,
+        notes: notes,
+        reason: reason ?? 'Nurse Screening & Vitals',
+        dynamicVitals: vitals,
+        conditionImages: conditionImages,
+        oldReportFiles: oldReportFiles,
+      ),
+    );
   }
 
   @override
@@ -946,23 +1022,34 @@ class VisitsRepositoryImpl implements VisitsRepository {
 
   @override
   Future<PatientVitalsSummary?> getVitalsForAppointment(String appointmentId) async {
-    // 1. Direct ID match
-    if (_cachedVitalsSummaries.containsKey(appointmentId)) {
-      return _cachedVitalsSummaries[appointmentId];
+    final query = appointmentId.trim();
+    if (query.isEmpty) return null;
+
+    // 1. Direct key match (case-sensitive or lowercase)
+    if (_cachedVitalsSummaries.containsKey(query)) {
+      return _cachedVitalsSummaries[query];
     }
-    // 2. Search values for matching ID or patient name
+    if (_cachedVitalsSummaries.containsKey(query.toLowerCase())) {
+      return _cachedVitalsSummaries[query.toLowerCase()];
+    }
+
+    // 2. Search values for matching ID, appointmentId, requestId, orderId, or patient name
     for (final s in _cachedVitalsSummaries.values) {
-      if (s.id == appointmentId ||
-          s.appointmentId == appointmentId ||
-          s.requestId == appointmentId ||
-          s.patientName.toLowerCase() == appointmentId.toLowerCase()) {
+      if (s.id == query ||
+          s.appointmentId == query ||
+          s.requestId == query ||
+          (s.orderId != null && s.orderId!.trim().toLowerCase() == query.toLowerCase()) ||
+          s.displayOrderId.trim().toLowerCase() == query.toLowerCase() ||
+          s.patientName.trim().toLowerCase() == query.toLowerCase() ||
+          s.patientName.trim().toLowerCase().contains(query.toLowerCase()) ||
+          query.toLowerCase().contains(s.patientName.trim().toLowerCase())) {
         return s;
       }
     }
 
     // 3. Try API fetch
     try {
-      final response = await _client.get('${ApiEndpoints.vitals}?appointmentId=$appointmentId');
+      final response = await _client.get('${ApiEndpoints.vitals}?appointmentId=$query');
       if (response != null && response is Map<String, dynamic>) {
         final data = response['data'] ?? response;
         if (data is Map<String, dynamic>) {
@@ -973,29 +1060,15 @@ class VisitsRepositoryImpl implements VisitsRepository {
       }
     } catch (_) {}
 
-    // 4. Fallback: build a default clinical summary from completed visit if available
-    final visit = _cachedCompletedVisits.cast<VisitRequestItem?>().firstWhere(
-          (c) => c?.id == appointmentId || c?.patientName.toLowerCase() == appointmentId.toLowerCase(),
-          orElse: () => null,
-        );
-    if (visit != null) {
-      final defaultSummary = PatientVitalsSummary(
-        id: visit.id.isNotEmpty ? visit.id : appointmentId,
-        requestId: visit.id.isNotEmpty ? visit.id : appointmentId,
-        appointmentId: visit.id.isNotEmpty ? visit.id : appointmentId,
-        patientName: visit.patientName,
-        patientAvatar: visit.avatarUrl,
-        patientAddress: visit.address,
-        patientPhone: visit.phoneNumber,
-        vitals: const [],
-        conditionPhotos: const [],
-        oldReports: const [],
-        notes: visit.notes.isNotEmpty ? visit.notes : 'Routine clinical vitals recording completed successfully.',
-        recordedAt: visit.time,
-      );
-      saveVitalsSummary(defaultSummary);
-      return defaultSummary;
+    // 4. Check for any non-empty summary for matching patient
+    for (final s in _cachedVitalsSummaries.values) {
+      if (s.vitals.isNotEmpty || s.conditionPhotos.isNotEmpty || s.oldReports.isNotEmpty) {
+        if (s.patientName.trim().toLowerCase() == query.toLowerCase()) {
+          return s;
+        }
+      }
     }
+
     return null;
   }
 
@@ -1076,10 +1149,14 @@ class VisitsRepositoryImpl implements VisitsRepository {
       // Query completed visits endpoints concurrently without dropping endpoints
       final responses = await Future.wait([
         _client.get('${ApiEndpoints.visits}?filter=completed').catchError((_) => null),
+        _client.get('${ApiEndpoints.visits}?status=COMPLETED').catchError((_) => null),
+        _client.get('${ApiEndpoints.visits}?status=completed').catchError((_) => null),
         _client.get('${ApiEndpoints.history}?status=COMPLETED&page=1&limit=50').catchError((_) => null),
         _client.get('${ApiEndpoints.history}?status=ALL&page=1&limit=50').catchError((_) => null),
+        _client.get('${ApiEndpoints.history}?filter=completed').catchError((_) => null),
         _client.get(ApiEndpoints.history).catchError((_) => null),
         _client.get(ApiEndpoints.visits).catchError((_) => null),
+        _client.get(ApiEndpoints.dashboard).catchError((_) => null),
       ]);
 
       for (final response in responses) {
@@ -1097,6 +1174,8 @@ class VisitsRepositoryImpl implements VisitsRepository {
             final inner = response['data'] as Map<String, dynamic>;
             listData = (inner['history'] ??
                 inner['completedVisits'] ??
+                inner['recentCompleted'] ??
+                inner['completed'] ??
                 inner['visits'] ??
                 inner['requests']) as List<dynamic>?;
           }
@@ -1134,14 +1213,15 @@ class VisitsRepositoryImpl implements VisitsRepository {
       try {
         final vitalsList = await getVitalsHistorySummaries();
         for (final v in vitalsList) {
-          final targetId = v.requestId.isNotEmpty ? v.requestId : (v.appointmentId.isNotEmpty ? v.appointmentId : v.id);
+          final targetId = v.requestId.isNotEmpty
+              ? v.requestId
+              : (v.appointmentId.isNotEmpty ? v.appointmentId : (v.id.isNotEmpty ? v.id : 'vital_${v.patientName}_${v.recordedAt}'));
           final altId = v.appointmentId.isNotEmpty ? v.appointmentId : v.id;
           final alreadyExists = _cachedCompletedVisits.any((c) =>
-              c.id == targetId ||
-              c.id == altId ||
+              (targetId.isNotEmpty && c.id == targetId) ||
+              (altId.isNotEmpty && c.id == altId) ||
               (v.appointmentId.isNotEmpty && (c.appointmentId == v.appointmentId || c.id == v.appointmentId)) ||
-              (v.requestId.isNotEmpty && (c.requestId == v.requestId || c.id == v.requestId)) ||
-              (v.patientName.isNotEmpty && c.patientName.trim().toLowerCase() == v.patientName.trim().toLowerCase()));
+              (v.requestId.isNotEmpty && (c.requestId == v.requestId || c.id == v.requestId)));
 
           if (!alreadyExists && targetId.isNotEmpty) {
             addToCachedCompletedVisits(VisitRequestItem(

@@ -3,12 +3,16 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:howpa_nurse/features/visits/presentation/screens/visits_screen.dart';
 import 'package:howpa_nurse/features/vitals/presentation/screens/update_vitals_screen.dart';
+import 'package:howpa_nurse/features/vitals/presentation/screens/view_vitals_screen.dart';
 import 'package:howpa_nurse/features/profile/presentation/screens/profile_screen.dart';
 import 'package:howpa_nurse/features/visits/data/models/visit_models.dart';
 import 'package:howpa_nurse/features/visits/data/repositories/visits_repository.dart';
+import 'package:howpa_nurse/features/vitals/data/models/vitals_details_model.dart';
 
 class VitalsItem {
   final String id;
+  final String? appointmentId;
+  final String? requestId;
   final String? orderId;
   final String patientName;
   final String timeText;
@@ -19,9 +23,13 @@ class VitalsItem {
   final String? patientGender;
   final bool isFamilyMember;
   final String? relation;
+  final bool isCompleted;
+  final PatientVitalsSummary? vitalsSummary;
 
   VitalsItem({
     required this.id,
+    this.appointmentId,
+    this.requestId,
     this.orderId,
     required this.patientName,
     required this.timeText,
@@ -32,6 +40,8 @@ class VitalsItem {
     this.patientGender,
     this.isFamilyMember = false,
     this.relation,
+    this.isCompleted = false,
+    this.vitalsSummary,
   });
 }
 
@@ -57,29 +67,59 @@ class _VitalsScreenState extends State<VitalsScreen> {
 
   Future<void> _loadVitalsData({String? query}) async {
     setState(() => _isLoading = true);
-    final visits = await _visitsRepo.getTodayVisits();
-    if (mounted) {
-      setState(() {
-        _vitalsList = visits.where((v) {
-          if (query == null || query.isEmpty) return true;
-          return v.patientName.toLowerCase().contains(query.toLowerCase());
-        }).map((v) {
-          return VitalsItem(
+    try {
+      final today = await _visitsRepo.getTodayVisits();
+      final Map<String, VitalsItem> itemMap = {};
+
+      for (final v in today) {
+        // Exclude visits that are completed or already have vitals updated
+        final isCompleted = v.status.toUpperCase() == 'COMPLETED' ||
+            v.isVitalsUpdated ||
+            VisitsRepositoryImpl.isVisitCompleted(v.id) ||
+            (v.appointmentId != null && VisitsRepositoryImpl.isVisitCompleted(v.appointmentId)) ||
+            (v.requestId != null && VisitsRepositoryImpl.isVisitCompleted(v.requestId)) ||
+            (v.orderId != null && VisitsRepositoryImpl.isVisitCompleted(v.orderId));
+
+        // Once the visit/appointment is completed, it should NOT be visible in the vitals screen
+        if (isCompleted) continue;
+
+        final key = v.id.isNotEmpty ? v.id : (v.orderId ?? '${v.patientName}_${v.time}');
+        if (!itemMap.containsKey(key)) {
+          itemMap[key] = VitalsItem(
             id: v.id,
+            appointmentId: v.appointmentId ?? v.id,
+            requestId: v.requestId,
             orderId: v.displayOrderId,
             patientName: v.patientName,
             timeText: v.time,
-            statusText: 'Vitals updated recently',
-            noteText: 'Please monitor BP every 2 hours and update...',
+            statusText: 'Pending Vitals',
+            noteText: 'Please record BP, pulse, temp and screening vitals.',
             avatarUrl: v.avatarUrl,
             patientAge: v.patientAge,
             patientGender: v.patientGender,
             isFamilyMember: v.isFamilyMember,
             relation: v.relation,
+            isCompleted: false,
           );
-        }).toList();
-        _isLoading = false;
-      });
+        }
+      }
+
+      var list = itemMap.values.toList();
+      if (query != null && query.trim().isNotEmpty) {
+        final q = query.trim().toLowerCase();
+        list = list.where((v) => v.patientName.toLowerCase().contains(q)).toList();
+      }
+
+      if (mounted) {
+        setState(() {
+          _vitalsList = list;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -93,14 +133,14 @@ class _VitalsScreenState extends State<VitalsScreen> {
           children: [
             // Header
             const Padding(
-              padding: EdgeInsets.fromLTRB(20, 20, 20, 16),
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Text(
                 'Vitals',
                 style: TextStyle(
-                  fontSize: 28,
+                  fontSize: 20,
                   fontWeight: FontWeight.w800,
                   color: Color(0xFF6B728E), // Bluish grey
-                  letterSpacing: -0.5,
+                  letterSpacing: -0.4,
                 ),
               ),
             ),
@@ -109,10 +149,10 @@ class _VitalsScreenState extends State<VitalsScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Container(
-                height: 48,
+                height: 38,
                 decoration: BoxDecoration(
                   color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
                 child: TextField(
@@ -124,15 +164,15 @@ class _VitalsScreenState extends State<VitalsScreen> {
                     hintText: 'Search by patient name',
                     hintStyle: TextStyle(
                       color: Color(0xFF94A3B8),
-                      fontSize: 15,
+                      fontSize: 13,
                     ),
                     prefixIcon: Icon(
                       Icons.search_rounded,
                       color: Color(0xFF94A3B8),
-                      size: 22,
+                      size: 18,
                     ),
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 14),
+                    contentPadding: EdgeInsets.symmetric(vertical: 9),
                   ),
                 ),
               ),
@@ -145,10 +185,44 @@ class _VitalsScreenState extends State<VitalsScreen> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _vitalsList.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'No patients found',
-                            style: TextStyle(color: Color(0xFF64748B), fontSize: 14),
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFF1F5F9),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.task_alt_rounded,
+                                    size: 40,
+                                    color: Color(0xFF10B981),
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                const Text(
+                                  'No Pending Vitals',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                const Text(
+                                  'All completed visits and records are saved in Visits & Profile history.',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
                           ),
                         )
                       : RefreshIndicator(
@@ -178,7 +252,7 @@ class _VitalsScreenState extends State<VitalsScreen> {
 
   Widget _buildVitalsItem(VitalsItem item) {
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(12.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -187,18 +261,18 @@ class _VitalsScreenState extends State<VitalsScreen> {
             children: [
               // Avatar
               Container(
-                width: 56,
-                height: 56,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: const Color(0xFFF1F5F9),
                   border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
                 ),
                 child: ClipOval(
-                  child: _buildAvatar(item.avatarUrl, item.patientName, 56),
+                  child: _buildAvatar(item.avatarUrl, item.patientName, 44),
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 10),
               // Patient Info
               Expanded(
                 child: Column(
@@ -211,7 +285,7 @@ class _VitalsScreenState extends State<VitalsScreen> {
                           child: Text(
                             item.patientName,
                             style: const TextStyle(
-                              fontSize: 16,
+                              fontSize: 13.5,
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF0F172A),
                             ),
@@ -219,11 +293,11 @@ class _VitalsScreenState extends State<VitalsScreen> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Text(
                           item.timeText,
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 10.5,
                             fontWeight: FontWeight.w500,
                             color: Color(0xFF64748B),
                           ),
@@ -239,7 +313,7 @@ class _VitalsScreenState extends State<VitalsScreen> {
                         bookedByName: null,
                       ),
                       style: const TextStyle(
-                        fontSize: 11.5,
+                        fontSize: 10.5,
                         fontWeight: FontWeight.w600,
                         color: Color(0xFF64748B),
                       ),
@@ -247,7 +321,7 @@ class _VitalsScreenState extends State<VitalsScreen> {
                     if (item.orderId != null && item.orderId!.isNotEmpty) ...[
                       const SizedBox(height: 3),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF1F5F9),
                           borderRadius: BorderRadius.circular(6),
@@ -256,12 +330,12 @@ class _VitalsScreenState extends State<VitalsScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.tag_rounded, size: 11, color: Color(0xFF64748B)),
-                            const SizedBox(width: 3),
+                            const Icon(Icons.tag_rounded, size: 10, color: Color(0xFF64748B)),
+                            const SizedBox(width: 2.5),
                             Text(
                               'Order ID: ${item.orderId}',
                               style: const TextStyle(
-                                fontSize: 11,
+                                fontSize: 10,
                                 fontWeight: FontWeight.bold,
                                 color: Color(0xFF334155),
                               ),
@@ -270,20 +344,20 @@ class _VitalsScreenState extends State<VitalsScreen> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
                         const Icon(
                           Icons.image_outlined, // Matching the small blue icon in the design
-                          size: 14,
+                          size: 12,
                           color: Color(0xFF0052FF),
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 5),
                         Expanded(
                           child: Text(
                             item.statusText,
                             style: const TextStyle(
-                              fontSize: 13,
+                              fontSize: 11,
                               color: Color(0xFF475569),
                               fontWeight: FontWeight.w500,
                             ),
@@ -308,50 +382,143 @@ class _VitalsScreenState extends State<VitalsScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          // Update Vitals Button
+          const SizedBox(height: 12),
+          // Action Button:
+          // If completed -> View Vital Report (Opens dedicated full screen)
+          // If pending -> Update Vitals (Navigates to screening form)
           SizedBox(
             width: double.infinity,
-            height: 44,
-            child: OutlinedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => UpdateVitalsScreen(
-                      appointmentId: item.id,
-                      orderId: item.orderId,
-                      patientName: item.patientName,
-                      avatarUrl: item.avatarUrl,
+            height: 38,
+            child: item.isCompleted
+                ? ElevatedButton.icon(
+                    onPressed: () => _navigateToVitalReport(item),
+                    icon: const Icon(
+                      Icons.description_outlined,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                    label: const Text(
+                      'View Vital Report',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 0,
+                    ),
+                  )
+                : OutlinedButton.icon(
+                    onPressed: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => UpdateVitalsScreen(
+                            appointmentId: item.appointmentId ?? item.id,
+                            orderId: item.orderId,
+                            patientName: item.patientName,
+                            avatarUrl: item.avatarUrl,
+                            patientAge: item.patientAge,
+                            patientGender: item.patientGender,
+                          ),
+                        ),
+                      );
+                      if (result != null) {
+                        VisitsRepositoryImpl.markVisitCompleted(
+                          item.id,
+                          appointmentId: item.appointmentId,
+                          requestId: item.requestId,
+                          orderId: item.orderId,
+                        );
+                        _loadVitalsData(query: _searchQuery);
+                      }
+                    },
+                    icon: const Icon(
+                      Icons.monitor_heart_outlined,
+                      size: 16,
+                      color: Color(0xFF0052FF),
+                    ),
+                    label: const Text(
+                      'Update Vitals',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0052FF),
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      side: const BorderSide(color: Color(0xFF0052FF), width: 1.2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                   ),
-                );
-              },
-              icon: const Icon(
-                Icons.monitor_heart_outlined,
-                size: 20,
-                color: Color(0xFF0052FF),
-              ),
-              label: const Text(
-                'Update Vitals',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0052FF),
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                backgroundColor: Colors.white,
-                side: const BorderSide(color: Color(0xFF0052FF), width: 1.2),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _navigateToVitalReport(VitalsItem item) async {
+    PatientVitalsSummary? summary = item.vitalsSummary;
+    if (summary == null) {
+      final aptId = item.appointmentId;
+      if (aptId != null && aptId.trim().isNotEmpty) {
+        summary = await _visitsRepo.getVitalsForAppointment(aptId);
+      }
+      if (summary == null && item.id.trim().isNotEmpty) {
+        summary = await _visitsRepo.getVitalsForAppointment(item.id);
+      }
+      final reqId = item.requestId;
+      if (summary == null && reqId != null && reqId.trim().isNotEmpty) {
+        summary = await _visitsRepo.getVitalsForAppointment(reqId);
+      }
+      final ordId = item.orderId;
+      if (summary == null && ordId != null && ordId.trim().isNotEmpty) {
+        summary = await _visitsRepo.getVitalsForAppointment(ordId);
+      }
+      if (summary == null && item.patientName.trim().isNotEmpty) {
+        summary = await _visitsRepo.getVitalsForAppointment(item.patientName);
+      }
+    }
+
+    if (!mounted) return;
+
+    if (summary != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ViewVitalsScreen(summary: summary!),
+        ),
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ViewVitalsScreen(
+            summary: PatientVitalsSummary(
+              id: item.id,
+              requestId: item.requestId ?? item.id,
+              appointmentId: item.appointmentId ?? item.id,
+              orderId: item.orderId,
+              patientName: item.patientName,
+              patientAvatar: item.avatarUrl,
+              patientGender: item.patientGender ?? '',
+              patientAge: item.patientAge ?? '',
+              recordedAt: item.timeText,
+              notes: item.noteText,
+              vitals: const [],
+            ),
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildBottomNavigationBar() {

@@ -266,7 +266,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   return Column(
                     children: [
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 24),
                       // Avatar with camera icon
                       Center(
                         child: GestureDetector(
@@ -274,44 +274,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           child: Stack(
                             children: [
                               Container(
-                                width: 100,
-                                height: 100,
+                                width: 80,
+                                height: 80,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
                                 ),
                                 child: UserProfileManager.instance.buildAvatarWidget(
-                                  size: 100,
+                                  size: 80,
                                   fallbackBgColor: const Color(0xFFFF5C00),
                                   fallbackIconColor: Colors.white,
-                                  iconSize: 50,
+                                  iconSize: 40,
                                 ),
                               ),
                               Positioned(
                                 bottom: 0,
                                 right: 0,
                                 child: Container(
-                                  width: 32,
-                                  height: 32,
+                                  width: 26,
+                                  height: 26,
                                   decoration: BoxDecoration(
                                     color: Colors.white,
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
                                         color: Colors.black.withValues(alpha: 0.1),
-                                        blurRadius: 8,
+                                        blurRadius: 6,
                                         offset: const Offset(0, 2),
                                       ),
                                     ],
                                   ),
-                                  child: const Icon(Icons.camera_alt_outlined, color: Color(0xFF0052FF), size: 18),
+                                  child: const Icon(Icons.camera_alt_outlined, color: Color(0xFF0052FF), size: 15),
                                 ),
                               ),
                             ],
                           ),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
                       // Name and Verified Badge
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -319,21 +319,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Text(
                             name,
                             style: const TextStyle(
-                              fontSize: 24,
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF0F172A),
                             ),
                           ),
-                          const SizedBox(width: 6),
-                          const Icon(Icons.verified_rounded, color: Color(0xFF0052FF), size: 22),
+                          const SizedBox(width: 5),
+                          const Icon(Icons.verified_rounded, color: Color(0xFF0052FF), size: 18),
                         ],
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       // Specialization
                       Text(
                         spec,
                         style: const TextStyle(
-                          fontSize: 15,
+                          fontSize: 13,
                           color: Color(0xFF64748B),
                         ),
                       ),
@@ -342,19 +342,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 },
               ),
               
-              const SizedBox(height: 32),
+              const SizedBox(height: 20),
               
               // Menu Options Container
               Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20),
+                margin: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.03),
-                      blurRadius: 10,
-                      spreadRadius: 2,
+                      blurRadius: 8,
+                      spreadRadius: 1,
                       offset: const Offset(0, 2),
                     ),
                   ],
@@ -434,14 +434,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               
-              const SizedBox(height: 32),
+              const SizedBox(height: 20),
               
               // Log Out Button
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: SizedBox(
                   width: double.infinity,
-                  height: 54,
+                  height: 44,
                   child: OutlinedButton.icon(
                     onPressed: () {
                       showDialog(
@@ -487,26 +487,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       backgroundColor: Colors.white,
                       side: const BorderSide(color: Color(0xFFEF4444), width: 1.2),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                   ),
                 ),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
 
               // Delete Account Button (App Store / Play Store Requirement)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Center(
                   child: TextButton.icon(
                     onPressed: _showDeleteAccountDialog,
-                    icon: const Icon(Icons.delete_forever_rounded, color: Color(0xFFDC2626), size: 20),
+                    icon: const Icon(Icons.delete_forever_rounded, color: Color(0xFFDC2626), size: 17),
                     label: const Text(
                       'Delete Account',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 12.5,
                         fontWeight: FontWeight.w600,
                         color: Color(0xFFDC2626),
                       ),
@@ -653,32 +653,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 11.0),
         child: Row(
           children: [
             Container(
-              width: 44,
-              height: 44,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
                 color: iconBgColor,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: iconColor, size: 24),
+              child: Icon(icon, color: iconColor, size: 18),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 13.5,
                   fontWeight: FontWeight.w600,
                   color: Color(0xFF0F172A),
                 ),
               ),
             ),
-            const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFF94A3B8), size: 16),
+            const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFF94A3B8), size: 14),
           ],
         ),
       ),

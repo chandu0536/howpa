@@ -6,6 +6,7 @@ import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/services/user_profile_manager.dart';
 import '../../../../core/services/booking_notification_manager.dart';
 import '../../../visits/data/repositories/visits_repository.dart';
+import 'package:flutter/painting.dart';
 import '../models/auth_models.dart';
 
 abstract class AuthRepository {
@@ -78,6 +79,10 @@ class AuthRepositoryImpl implements AuthRepository {
     UserProfileManager.instance.reset();
     VisitsRepositoryImpl.clearAllCache();
     BookingNotificationManager.clearAll();
+    try {
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+    } catch (_) {}
     return true;
   }
 }

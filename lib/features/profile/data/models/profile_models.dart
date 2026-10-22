@@ -82,6 +82,35 @@ class KycDocumentsStatus {
     this.rejectionReason,
   });
 
+  bool get hasAnyDocumentUploaded =>
+      isNursingCertUploaded ||
+      isAadhaarFrontUploaded ||
+      isAadhaarBackUploaded ||
+      isGovtIdUploaded ||
+      isPhotoUploaded ||
+      (nursingCertUrl != null && nursingCertUrl!.isNotEmpty) ||
+      (aadhaarFrontUrl != null && aadhaarFrontUrl!.isNotEmpty) ||
+      (aadhaarBackUrl != null && aadhaarBackUrl!.isNotEmpty) ||
+      (govtIdUrl != null && govtIdUrl!.isNotEmpty) ||
+      (photoUrl != null && photoUrl!.isNotEmpty);
+
+  bool get isUnderReview {
+    final s = status.trim().toUpperCase().replaceAll('-', '_').replaceAll(' ', '_');
+    return s == 'UNDER_REVIEW' ||
+        s == 'IN_REVIEW' ||
+        s == 'REVIEW' ||
+        s == 'INREVIEW' ||
+        s == 'UNDERREVIEW' ||
+        s == 'SUBMITTED' ||
+        s == 'AWAITING_APPROVAL' ||
+        s == 'WAITING_APPROVAL' ||
+        s == 'PENDING_APPROVAL' ||
+        s == 'PENDING_VERIFICATION' ||
+        s == 'DOCS_SUBMITTED' ||
+        s == 'KYC_SUBMITTED' ||
+        s == 'IN_PROGRESS';
+  }
+
   factory KycDocumentsStatus.fromJson(Map<String, dynamic> json) {
     String? extractUrl(dynamic obj) {
       if (obj == null) return null;

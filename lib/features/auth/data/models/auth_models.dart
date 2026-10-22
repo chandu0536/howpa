@@ -23,6 +23,9 @@ class VerifyOtpRequest {
         'phone': phone,
         'otp': otp,
         if (fcmToken != null) 'fcmToken': fcmToken,
+        if (fcmToken != null) 'deviceToken': fcmToken,
+        if (fcmToken != null) 'pushToken': fcmToken,
+        if (fcmToken != null) 'token': fcmToken,
         'deviceType': deviceType,
       };
 }
@@ -47,6 +50,8 @@ class NurseUser {
   final bool isProfileCompleted;
   final String? approvalStatus;
   final String? accountStatus;
+  final String? kycStatus;
+  final String? verificationStatus;
   final String? role;
   final String? profilePhotoUrl;
 
@@ -70,13 +75,44 @@ class NurseUser {
     this.isProfileCompleted = false,
     this.approvalStatus,
     this.accountStatus,
+    this.kycStatus,
+    this.verificationStatus,
     this.role,
     this.profilePhotoUrl,
   });
 
+  static bool isUnderReviewStatus(String? status) {
+    if (status == null) return false;
+    final s = status.trim().toUpperCase().replaceAll('-', '_').replaceAll(' ', '_');
+    return s == 'UNDER_REVIEW' ||
+        s == 'IN_REVIEW' ||
+        s == 'REVIEW' ||
+        s == 'INREVIEW' ||
+        s == 'UNDERREVIEW' ||
+        s == 'SUBMITTED' ||
+        s == 'AWAITING_APPROVAL' ||
+        s == 'WAITING_APPROVAL' ||
+        s == 'PENDING_APPROVAL' ||
+        s == 'PENDING_VERIFICATION' ||
+        s == 'DOCS_SUBMITTED' ||
+        s == 'KYC_SUBMITTED' ||
+        s == 'DOCUMENTS_SUBMITTED' ||
+        s == 'IN_PROGRESS' ||
+        s == 'VERIFICATION_IN_PROGRESS';
+  }
+
+  bool get isUnderReview {
+    if (approvalStatus != null && isUnderReviewStatus(approvalStatus)) return true;
+    if (accountStatus != null && isUnderReviewStatus(accountStatus)) return true;
+    if (kycStatus != null && isUnderReviewStatus(kycStatus)) return true;
+    if (verificationStatus != null && isUnderReviewStatus(verificationStatus)) return true;
+    return false;
+  }
+
   bool get isApproved {
+    if (isUnderReview) return false;
     final s = approvalStatus?.trim().toUpperCase();
-    return (isVerified && s != 'PENDING' && s != 'UNDER_REVIEW' && s != 'IN_REVIEW' && s != 'SUBMITTED') ||
+    return (isVerified && s != 'PENDING' && !isUnderReview) ||
         s == 'APPROVED' ||
         s == 'VERIFIED' ||
         s == 'ACTIVE' ||
@@ -92,33 +128,46 @@ class NurseUser {
 
   bool get isPending {
     if (isApproved || isRejected) return false;
+    if (isUnderReview) return true;
     final s = approvalStatus?.trim().toUpperCase();
     final a = accountStatus?.trim().toUpperCase();
-    final isPendingStatus = s == 'PENDING' ||
-        s == 'UNDER_REVIEW' ||
-        s == 'SUBMITTED' ||
-        s == 'IN_REVIEW' ||
-        s == 'REVIEW' ||
-        a == 'PENDING' ||
-        a == 'UNDER_REVIEW';
-    return isProfileCompleted && isKycSubmitted && isPendingStatus;
+    final isPendingStatus = s == 'PENDING' || a == 'PENDING';
+    return (isProfileCompleted && isKycSubmitted) || isPendingStatus;
   }
 
   factory NurseUser.fromJson(Map<String, dynamic> json) {
     // Check all possible status field keys
-    final rawStatus = json['approvalStatus'] ??
-        json['approval_status'] ??
-        json['verificationStatus'] ??
-        json['verification_status'] ??
-        json['kycStatus'] ??
-        json['kyc_status'] ??
-        json['status'] ??
-        json['state'];
-    final status = rawStatus?.toString();
-    final statusUpper = status?.trim().toUpperCase();
+    final rawApprovalStatus = json['approvalStatus'] ?? json['approval_status'];
+    final rawVerificationStatus = json['verificationStatus'] ?? json['verification_status'];
+    final rawKycStatus = json['kycStatus'] ?? json['kyc_status'] ?? json['documentStatus'] ?? json['document_status'];
+    final rawAccountStatus = json['accountStatus'] ?? json['account_status'];
+    final rawGeneralStatus = json['status'] ?? json['state'];
 
-    final rawAccStatus = json['accountStatus'] ?? json['account_status'];
-    final accStatus = rawAccStatus?.toString();
+    final List<String?> candidateStatuses = [
+      rawApprovalStatus?.toString(),
+      rawVerificationStatus?.toString(),
+      rawKycStatus?.toString(),
+      rawGeneralStatus?.toString(),
+      rawAccountStatus?.toString(),
+    ];
+    if (json['kyc'] is Map) {
+      candidateStatuses.add(json['kyc']['status']?.toString());
+      candidateStatuses.add(json['kyc']['approvalStatus']?.toString());
+    }
+    if (json['documents'] is Map) {
+      candidateStatuses.add(json['documents']['status']?.toString());
+    }
+    if (json['verification'] is Map) {
+      candidateStatuses.add(json['verification']['status']?.toString());
+    }
+
+    final bool isReviewOrSubmitted = candidateStatuses.any((s) => isUnderReviewStatus(s));
+
+    final bool isApprovedStatus = candidateStatuses.any((s) {
+      if (s == null) return false;
+      final u = s.trim().toUpperCase();
+      return u == 'APPROVED' || u == 'VERIFIED' || u == 'ACTIVE';
+    });
 
     // Check all possible boolean/flag fields
     final bool isApprovedFlag = json['isApproved'] == true ||
@@ -141,10 +190,10 @@ class NurseUser {
         json['verified'] == 1 ||
         json['verified'] == 'true';
 
-    final bool verified = statusUpper == 'APPROVED' ||
-        statusUpper == 'VERIFIED' ||
-        (isApprovedFlag && statusUpper != 'PENDING' && statusUpper != 'UNDER_REVIEW') ||
-        (isVerifiedFlag && statusUpper != 'PENDING' && statusUpper != 'UNDER_REVIEW');
+    final bool verified = (isApprovedStatus ||
+        (isApprovedFlag && !isReviewOrSubmitted) ||
+        (isVerifiedFlag && !isReviewOrSubmitted)) &&
+        !isReviewOrSubmitted;
 
     final rawPhoto = json['profilePhotoUrl'] ??
         json['profile_photo_url'] ??
@@ -201,22 +250,24 @@ class NurseUser {
         if (val is Map) {
           final u = val['url']?.toString().trim();
           final k = val['key']?.toString().trim();
-          if ((u != null && u.isNotEmpty) || (k != null && k.isNotEmpty)) {
+          if ((u != null && u.isNotEmpty && u != 'null') || (k != null && k.isNotEmpty && k != 'null')) {
             hasActualDocs = true;
             break;
           }
-        } else if (val is String && val.trim().isNotEmpty) {
+        } else if (val is String && val.trim().isNotEmpty && val.trim() != 'null') {
           hasActualDocs = true;
           break;
         }
       }
-    } else if (json['nursingCertificate'] != null && json['nursingCertificate'].toString().trim().isNotEmpty) {
+    } else if (json['nursingCertificate'] != null && json['nursingCertificate'].toString().trim().isNotEmpty && json['nursingCertificate'].toString() != 'null') {
       hasActualDocs = true;
-    } else if (json['aadhaarFront'] != null && json['aadhaarFront'].toString().trim().isNotEmpty) {
+    } else if (json['aadhaarFront'] != null && json['aadhaarFront'].toString().trim().isNotEmpty && json['aadhaarFront'].toString() != 'null') {
+      hasActualDocs = true;
+    } else if (json['certificate'] != null && json['certificate'].toString().trim().isNotEmpty && json['certificate'].toString() != 'null') {
       hasActualDocs = true;
     }
 
-    final bool hasFullName = nameStr != null && nameStr.trim().isNotEmpty;
+    final bool hasFullName = nameStr != null && nameStr.trim().isNotEmpty && nameStr.trim() != 'Nurse';
 
     final bool isProfileCompletedExplicit = json['isProfileCompleted'] == true ||
         json['is_profile_completed'] == true ||
@@ -224,15 +275,33 @@ class NurseUser {
         json['isProfileComplete'] == true;
 
     final bool isKycSubmittedExplicit = json['isKycSubmitted'] == true ||
+        json['isKycSubmitted'] == 1 ||
+        json['isKycSubmitted'] == 'true' ||
         json['is_kyc_submitted'] == true ||
+        json['is_kyc_submitted'] == 1 ||
+        json['is_kyc_submitted'] == 'true' ||
         json['kycSubmitted'] == true ||
-        json['isKycUploaded'] == true;
+        json['kyc_submitted'] == true ||
+        json['isKycUploaded'] == true ||
+        json['kycUploaded'] == true ||
+        json['documentsSubmitted'] == true ||
+        json['isDocumentsSubmitted'] == true ||
+        json['step'] == 2 ||
+        json['step'] == 3 ||
+        json['step'] == '2' ||
+        json['step'] == '3' ||
+        json['registrationStep'] == 2 ||
+        json['registrationStep'] == 3 ||
+        json['registration_step'] == 2 ||
+        json['registration_step'] == 3;
 
-    final bool profileCompletedVal = (isProfileCompletedExplicit && hasFullName) ||
+    final bool profileCompletedVal = isReviewOrSubmitted ||
+        (isProfileCompletedExplicit && hasFullName) ||
         hasFullName ||
         hasActualDocs;
 
-    final bool kycSubmittedVal = (isKycSubmittedExplicit && profileCompletedVal) ||
+    final bool kycSubmittedVal = isReviewOrSubmitted ||
+        isKycSubmittedExplicit ||
         hasActualDocs;
 
     double? lat;
@@ -264,6 +333,12 @@ class NurseUser {
       lng = double.tryParse(rawLng);
     }
 
+    final String chosenApprovalStatus = verified
+        ? 'APPROVED'
+        : (isReviewOrSubmitted
+            ? 'UNDER_REVIEW'
+            : (rawApprovalStatus?.toString() ?? rawGeneralStatus?.toString() ?? (kycSubmittedVal ? 'PENDING' : null) ?? 'PENDING'));
+
     return NurseUser(
       id: json['_id']?.toString() ?? json['id']?.toString() ?? json['nurseId']?.toString() ?? '',
       phone: json['phone']?.toString() ??
@@ -288,8 +363,10 @@ class NurseUser {
       isVerified: verified,
       isKycSubmitted: kycSubmittedVal,
       isProfileCompleted: profileCompletedVal,
-      approvalStatus: statusUpper == 'APPROVED' || verified ? 'APPROVED' : (status ?? (kycSubmittedVal ? 'PENDING' : null)),
-      accountStatus: accStatus,
+      approvalStatus: chosenApprovalStatus,
+      accountStatus: rawAccountStatus?.toString(),
+      kycStatus: rawKycStatus?.toString() ?? (isReviewOrSubmitted ? 'UNDER_REVIEW' : null),
+      verificationStatus: rawVerificationStatus?.toString() ?? (isReviewOrSubmitted ? 'UNDER_REVIEW' : null),
       role: json['role'] as String?,
       profilePhotoUrl: photoStr,
     );
@@ -314,6 +391,8 @@ class NurseUser {
         'isProfileCompleted': isProfileCompleted,
         'approvalStatus': approvalStatus,
         'accountStatus': accountStatus,
+        'kycStatus': kycStatus,
+        'verificationStatus': verificationStatus,
         'role': role,
         'profilePhotoUrl': profilePhotoUrl,
       };
@@ -334,21 +413,67 @@ class AuthResponse {
 
   factory AuthResponse.fromJson(Map<String, dynamic> json) {
     final data = json['data'] is Map ? json['data'] as Map<String, dynamic> : json;
-    final userData = data['user'] is Map<String, dynamic>
-        ? data['user'] as Map<String, dynamic>
+    Map<String, dynamic>? rawUserData = data['user'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(data['user'] as Map<String, dynamic>)
         : (data['nurse'] is Map<String, dynamic>
-            ? data['nurse'] as Map<String, dynamic>
+            ? Map<String, dynamic>.from(data['nurse'] as Map<String, dynamic>)
             : (json['user'] is Map<String, dynamic>
-                ? json['user'] as Map<String, dynamic>
+                ? Map<String, dynamic>.from(json['user'] as Map<String, dynamic>)
                 : (json['nurse'] is Map<String, dynamic>
-                    ? json['nurse'] as Map<String, dynamic>
-                    : null)));
+                    ? Map<String, dynamic>.from(json['nurse'] as Map<String, dynamic>)
+                    : (data['profile'] is Map<String, dynamic>
+                        ? Map<String, dynamic>.from(data['profile'] as Map<String, dynamic>)
+                        : null))));
+
+    Map<String, dynamic> combinedUserData = {};
+    if (rawUserData != null) {
+      combinedUserData.addAll(rawUserData);
+    } else if (data.containsKey('phone') || data.containsKey('mobile') || data.containsKey('_id') || data.containsKey('fullName')) {
+      combinedUserData.addAll(data);
+    }
+
+    // Merge status and metadata from data and root json into combinedUserData if missing
+    for (final key in [
+      'status',
+      'approvalStatus',
+      'approval_status',
+      'verificationStatus',
+      'verification_status',
+      'kycStatus',
+      'kyc_status',
+      'documentStatus',
+      'document_status',
+      'accountStatus',
+      'account_status',
+      'state',
+      'isApproved',
+      'is_approved',
+      'isVerified',
+      'is_verified',
+      'isKycSubmitted',
+      'is_kyc_submitted',
+      'kycSubmitted',
+      'isProfileCompleted',
+      'is_profile_completed',
+      'documents',
+      'step',
+      'registrationStep',
+      'registration_step',
+    ]) {
+      if (!combinedUserData.containsKey(key) || combinedUserData[key] == null) {
+        if (data.containsKey(key) && data[key] != null) {
+          combinedUserData[key] = data[key];
+        } else if (json.containsKey(key) && json[key] != null) {
+          combinedUserData[key] = json[key];
+        }
+      }
+    }
 
     return AuthResponse(
       success: json['success'] as bool? ?? true,
       message: json['message'] as String?,
       token: data['token'] as String? ?? data['nurseToken'] as String? ?? json['token'] as String? ?? '',
-      nurse: userData != null ? NurseUser.fromJson(userData) : null,
+      nurse: combinedUserData.isNotEmpty ? NurseUser.fromJson(combinedUserData) : null,
     );
   }
 }

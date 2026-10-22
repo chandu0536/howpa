@@ -72,6 +72,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
       final response = await _client.get(ApiEndpoints.profile);
       if (response != null && response is Map<String, dynamic>) {
         final Map<String, dynamic> combined = {};
+        _safeMerge(combined, response);
         if (response['nurse'] is Map<String, dynamic>) {
           _safeMerge(combined, response['nurse'] as Map<String, dynamic>);
         }
@@ -83,9 +84,6 @@ class ProfileRepositoryImpl implements ProfileRepository {
         }
         if (response['profile'] is Map<String, dynamic>) {
           _safeMerge(combined, response['profile'] as Map<String, dynamic>);
-        }
-        if (combined.isEmpty) {
-          _safeMerge(combined, response);
         }
         final user = NurseUser.fromJson(combined);
         _syncUserToManager(user);

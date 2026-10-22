@@ -41,6 +41,10 @@ class _PhoneNumberScreenState extends State<PhoneNumberScreen> {
     TokenStorage.clear();
     VisitsRepositoryImpl.clearAllCache();
     BookingNotificationManager.clearAll();
+    try {
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+    } catch (_) {}
 
     _phoneFocusNode.addListener(() {
       setState(() {});
@@ -95,13 +99,13 @@ class _PhoneNumberScreenState extends State<PhoneNumberScreen> {
           ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(1.0, 0.0),
-                end: Offset.zero,
-              ).animate(CurvedAnimation(
-                parent: animation,
-                curve: Curves.easeInOut,
-              )),
+              position:
+                  Tween<Offset>(
+                    begin: const Offset(1.0, 0.0),
+                    end: Offset.zero,
+                  ).animate(
+                    CurvedAnimation(parent: animation, curve: Curves.easeInOut),
+                  ),
               child: child,
             );
           },
@@ -157,248 +161,239 @@ class _PhoneNumberScreenState extends State<PhoneNumberScreen> {
               children: [
                 const SizedBox(height: 10),
 
-              // Top Logo
-              Image.asset(
-                'assets/images/howpa_logo.png',
-                height: 95,
-                fit: BoxFit.contain,
-              ),
-
-              const SizedBox(height: 48),
-
-              // Title
-              const Text(
-                'Enter Your Mobile Number',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0F172A),
-                  letterSpacing: -0.3,
+                // Top Logo
+                Image.asset(
+                  'assets/images/howpa_logo.png',
+                  height: 95,
+                  fit: BoxFit.contain,
                 ),
-              ),
 
-              const SizedBox(height: 8),
+                const SizedBox(height: 48),
 
-              // Subtitle
-              const Text(
-                'We’ll send you a One-Time Password to verify',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF64748B),
-                  height: 1.4,
-                ),
-              ),
-
-              const SizedBox(height: 36),
-
-              // Mobile Number Input Row
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Country Code Selector Container
-                  Container(
-                    height: 56,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: const Color(0xFFE2E8F0),
-                        width: 1.2,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _selectedCountryCode,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF0F172A),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Icon(
-                          Icons.keyboard_arrow_down,
-                          color: Color(0xFF64748B),
-                          size: 20,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(width: 12),
-
-                  // Phone Number Input Field
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: _errorMessage != null
-                                  ? const Color(0xFFEF4444)
-                                  : (isFocused
-                                      ? const Color(0xFF0052FF)
-                                      : const Color(0xFFE2E8F0)),
-                              width: isFocused || _errorMessage != null ? 1.8 : 1.2,
-                            ),
-                            boxShadow: isFocused
-                                ? [
-                                    const BoxShadow(
-                                      color: Color(0x1A0052FF),
-                                      blurRadius: 8,
-                                      offset: Offset(0, 2),
-                                    ),
-                                  ]
-                                : [],
-                          ),
-                          child: TextField(
-                            controller: _phoneController,
-                            focusNode: _phoneFocusNode,
-                            keyboardType: TextInputType.phone,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                              LengthLimitingTextInputFormatter(10),
-                            ],
-                            onChanged: (val) {
-                              if (_errorMessage != null) {
-                                setState(() {
-                                  _errorMessage = null;
-                                });
-                              }
-                            },
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF0F172A),
-                            ),
-                            decoration: const InputDecoration(
-                              hintText: 'Enter mobile number',
-                              hintStyle: TextStyle(
-                                fontSize: 15,
-                                color: Color(0xFF94A3B8),
-                                fontWeight: FontWeight.normal,
-                              ),
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 16,
-                              ),
-                              border: InputBorder.none,
-                            ),
-                          ),
-                        ),
-                        if (_errorMessage != null) ...[
-                          const SizedBox(height: 6),
-                          Padding(
-                            padding: const EdgeInsets.only(left: 4.0),
-                            child: Text(
-                              _errorMessage!,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFFEF4444),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 36),
-
-              // Send OTP Gradient Button
-              Container(
-                width: double.infinity,
-                height: 54,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  gradient: const LinearGradient(
-                    colors: [
-                      Color(0xFF0052FF), // Vibrant Blue
-                      Color(0xFFFF5C00), // Vibrant Orange
-                    ],
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                  ),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x260052FF),
-                      blurRadius: 12,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: ElevatedButton(
-                  onPressed: _onSendOtpPressed,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 22,
-                          width: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : const Text(
-                          'Send OTP',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                ),
-              ),
-
-              const SizedBox(height: 120),
-
-              // Footer Terms & Privacy Notice
-              Padding(
-                padding: const EdgeInsets.only(bottom: 24.0),
-                child: RichText(
+                // Title
+                const Text(
+                  'Enter Your Mobile Number',
                   textAlign: TextAlign.center,
-                  text: const TextSpan(
-                    text: 'By continuing, you agree to our ',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF64748B),
-                    ),
-                    children: [
-                      TextSpan(
-                        text: 'Terms & Privacy Policy.',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.3,
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                // Subtitle
+                const Text(
+                  'We’ll send you a One-Time Password to verify',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF64748B),
+                    height: 1.4,
+                  ),
+                ),
+
+                const SizedBox(height: 36),
+
+                // Mobile Number Input Row
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Country Code Selector Container
+                    Container(
+                      height: 56,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: const Color(0xFFE2E8F0),
+                          width: 1.2,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        _selectedCountryCode,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
                           color: Color(0xFF0F172A),
                         ),
                       ),
+                    ),
+
+                    const SizedBox(width: 12),
+
+                    // Phone Number Input Field
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _errorMessage != null
+                                    ? const Color(0xFFEF4444)
+                                    : (isFocused
+                                          ? const Color(0xFF0052FF)
+                                          : const Color(0xFFE2E8F0)),
+                                width: isFocused || _errorMessage != null
+                                    ? 1.8
+                                    : 1.2,
+                              ),
+                              boxShadow: isFocused
+                                  ? [
+                                      const BoxShadow(
+                                        color: Color(0x1A0052FF),
+                                        blurRadius: 8,
+                                        offset: Offset(0, 2),
+                                      ),
+                                    ]
+                                  : [],
+                            ),
+                            child: TextField(
+                              controller: _phoneController,
+                              focusNode: _phoneFocusNode,
+                              keyboardType: TextInputType.phone,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                LengthLimitingTextInputFormatter(10),
+                              ],
+                              onChanged: (val) {
+                                if (_errorMessage != null) {
+                                  setState(() {
+                                    _errorMessage = null;
+                                  });
+                                }
+                              },
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF0F172A),
+                              ),
+                              decoration: const InputDecoration(
+                                hintText: 'Enter mobile number',
+                                hintStyle: TextStyle(
+                                  fontSize: 15,
+                                  color: Color(0xFF94A3B8),
+                                  fontWeight: FontWeight.normal,
+                                ),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 16,
+                                ),
+                                border: InputBorder.none,
+                              ),
+                            ),
+                          ),
+                          if (_errorMessage != null) ...[
+                            const SizedBox(height: 6),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 4.0),
+                              child: Text(
+                                _errorMessage!,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFFEF4444),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 36),
+
+                // Send OTP Gradient Button
+                Container(
+                  width: double.infinity,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    gradient: const LinearGradient(
+                      colors: [
+                        Color(0xFF0052FF), // Vibrant Blue
+                        Color(0xFFFF5C00), // Vibrant Orange
+                      ],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x260052FF),
+                        blurRadius: 12,
+                        offset: Offset(0, 4),
+                      ),
                     ],
                   ),
+                  child: ElevatedButton(
+                    onPressed: _onSendOtpPressed,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
+                            ),
+                          )
+                        : const Text(
+                            'Send OTP',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
                 ),
-              ),
-            ],
+
+                const SizedBox(height: 120),
+
+                // Footer Terms & Privacy Notice
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 24.0),
+                  child: RichText(
+                    textAlign: TextAlign.center,
+                    text: const TextSpan(
+                      text: 'By continuing, you agree to our ',
+                      style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                      children: [
+                        TextSpan(
+                          text: 'Terms & Privacy Policy.',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 }

@@ -1,6 +1,64 @@
 // ignore_for_file: use_null_aware_elements
 import 'dart:convert';
+import 'dart:io';
 import 'package:howpa_nurse/core/utils/constants.dart';
+
+class BookedServiceItem {
+  final String id;
+  final String name;
+  final double? price;
+  final String? description;
+  final String? imageUrl;
+
+  const BookedServiceItem({
+    required this.id,
+    required this.name,
+    this.price,
+    this.description,
+    this.imageUrl,
+  });
+
+  factory BookedServiceItem.fromJson(Map<String, dynamic> json) {
+    return BookedServiceItem(
+      id: (json['_id'] ?? json['id'] ?? '').toString(),
+      name: (json['name'] ?? json['serviceName'] ?? json['title'] ?? '').toString(),
+      price: (json['price'] as num?)?.toDouble() ?? (json['amount'] as num?)?.toDouble(),
+      description: json['description']?.toString(),
+      imageUrl: formatImageUrl(json['image']?.toString() ?? json['imageUrl']?.toString() ?? json['icon']?.toString()),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    if (price != null) 'price': price,
+    if (description != null) 'description': description,
+    if (imageUrl != null) 'imageUrl': imageUrl,
+  };
+}
+
+class DynamicVitalItem {
+  String name;
+  String value;
+  String unit;
+  File? meterPhoto;
+
+  DynamicVitalItem({
+    this.name = '',
+    this.value = '',
+    this.unit = '',
+    this.meterPhoto,
+  });
+
+  Map<String, dynamic> toMeta(String photoKey) {
+    return {
+      'name': name.trim(),
+      'value': value.trim(),
+      'unit': unit.trim(),
+      'photoKey': photoKey,
+    };
+  }
+}
 
 String formatImageUrl(String? rawUrl) {
   if (rawUrl == null) return '';
@@ -27,10 +85,32 @@ String formatImageUrl(String? rawUrl) {
   if (clean.startsWith('http://') || clean.startsWith('https://')) {
     return Uri.encodeFull(clean);
   }
-  // Local file paths
-  if (clean.startsWith('file://')) {
+  // Cloud storage URLs missing scheme
+  if (clean.contains('cloudinary.com') ||
+      clean.contains('.amazonaws.com') ||
+      clean.contains('s3.') ||
+      clean.contains('storage.googleapis.com')) {
+    final fixedUrl = 'https://${clean.replaceFirst(RegExp(r'^/+'), '')}';
+    return Uri.encodeFull(fixedUrl);
+  }
+  // Local file paths (Android, iOS, Windows, image_picker cache)
+  if (clean.startsWith('file://') ||
+      clean.startsWith('/data/') ||
+      clean.startsWith('/storage/') ||
+      clean.startsWith('/var/') ||
+      clean.startsWith('/private/') ||
+      clean.contains('/cache/') ||
+      clean.contains('/app_flutter/') ||
+      clean.contains('/image_picker/') ||
+      clean.contains(r':\') ||
+      clean.contains(r':/')) {
     return clean;
   }
+  try {
+    if (File(clean).existsSync()) {
+      return clean;
+    }
+  } catch (_) {}
   final base = AppConstants.baseUrl.endsWith('/')
       ? AppConstants.baseUrl.substring(0, AppConstants.baseUrl.length - 1)
       : AppConstants.baseUrl;
@@ -548,6 +628,7 @@ class VisitRequestItem {
   final String? appointmentId;
   final String? requestId;
   final String? orderId;
+  final List<BookedServiceItem> bookedServices;
 
   const VisitRequestItem({
     required this.id,
@@ -578,6 +659,7 @@ class VisitRequestItem {
     this.appointmentId,
     this.requestId,
     this.orderId,
+    this.bookedServices = const [],
   });
 
   VisitRequestItem copyWith({
@@ -609,6 +691,7 @@ class VisitRequestItem {
     String? appointmentId,
     String? requestId,
     String? orderId,
+    List<BookedServiceItem>? bookedServices,
   }) {
     return VisitRequestItem(
       id: id ?? this.id,
@@ -639,6 +722,7 @@ class VisitRequestItem {
       appointmentId: appointmentId ?? this.appointmentId,
       requestId: requestId ?? this.requestId,
       orderId: orderId ?? this.orderId,
+      bookedServices: bookedServices ?? this.bookedServices,
     );
   }
 
@@ -841,14 +925,23 @@ class VisitRequestItem {
       distStr = (lat != null && lng != null) ? 'Nearby' : '--';
     }
 
-    String serviceTag = 'Home Care';
-    if (json['services'] is List && (json['services'] as List).isNotEmpty) {
-      final firstSvc = (json['services'] as List).first;
-      if (firstSvc is Map) {
-        serviceTag = firstSvc['name']?.toString() ?? 'Home Care';
-      } else {
-        serviceTag = firstSvc.toString();
+    final List<BookedServiceItem> bookedServices = [];
+    final rawServices = json['services'] ?? json['bookedServices'] ?? json['serviceList'];
+    if (rawServices is List) {
+      for (final s in rawServices) {
+        if (s is Map<String, dynamic>) {
+          bookedServices.add(BookedServiceItem.fromJson(s));
+        } else if (s is Map) {
+          bookedServices.add(BookedServiceItem.fromJson(Map<String, dynamic>.from(s)));
+        } else if (s != null && s.toString().trim().isNotEmpty) {
+          bookedServices.add(BookedServiceItem(id: '', name: s.toString().trim()));
+        }
       }
+    }
+
+    String serviceTag = 'Home Care';
+    if (bookedServices.isNotEmpty && bookedServices.first.name.isNotEmpty) {
+      serviceTag = bookedServices.first.name;
     } else if (json['serviceTag'] != null) {
       serviceTag = json['serviceTag'].toString();
     } else if (json['serviceType'] != null) {
@@ -1114,6 +1207,7 @@ class VisitRequestItem {
       appointmentId: parsedAppointmentId,
       requestId: parsedRequestId,
       orderId: parsedOrderId,
+      bookedServices: bookedServices,
     );
   }
 }
@@ -1133,6 +1227,7 @@ class RecordVitalsRequest {
   final List<String>? conditionImages;
   final List<String>? oldReportFiles;
   final List<Map<String, String>>? customVitals;
+  final List<DynamicVitalItem>? dynamicVitals;
 
   const RecordVitalsRequest({
     required this.appointmentId,
@@ -1148,6 +1243,7 @@ class RecordVitalsRequest {
     this.conditionImages,
     this.oldReportFiles,
     this.customVitals,
+    this.dynamicVitals,
   });
 
   Map<String, dynamic> toJson() {
@@ -1200,6 +1296,11 @@ class RecordVitalsRequest {
       'symptoms': reason,
       if (customVitals != null && customVitals!.isNotEmpty)
         'customVitals': customVitals,
+      if (dynamicVitals != null && dynamicVitals!.isNotEmpty)
+        'vitals': dynamicVitals!.asMap().entries.map((e) {
+          final photoKey = e.value.meterPhoto != null ? 'vital_photo_${e.key}' : '';
+          return e.value.toMeta(photoKey);
+        }).toList(),
     };
   }
 
@@ -1252,6 +1353,11 @@ class RecordVitalsRequest {
       'symptoms': reason,
       if (customVitals != null && customVitals!.isNotEmpty)
         'customVitals': jsonEncode(customVitals),
+      if (dynamicVitals != null && dynamicVitals!.isNotEmpty)
+        'vitals': jsonEncode(dynamicVitals!.asMap().entries.map((e) {
+          final photoKey = e.value.meterPhoto != null ? 'vital_photo_${e.key}' : '';
+          return e.value.toMeta(photoKey);
+        }).toList()),
     };
   }
 }
