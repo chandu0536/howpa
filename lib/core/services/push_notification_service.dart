@@ -23,17 +23,48 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint('🔥 [FCM BACKGROUND PUSH NOTIFICATION] Message ID: ${message.messageId}');
   debugPrint('🔥 [FCM BACKGROUND PUSH NOTIFICATION] Data: ${message.data}');
 
+  final data = message.data;
+  final type = (data['type'] ?? data['action'] ?? '').toString().toUpperCase();
+
+  // If visit was taken/assigned/cancelled or dismissed, cleanup active buzzer popup
+  if (type == 'VISIT_ASSIGNED' ||
+      type == 'VISIT_CANCELLED' ||
+      type == 'VISIT_TAKEN' ||
+      type == 'REQUEST_EXPIRED' ||
+      type == 'DISMISS_NURSE_REQUEST' ||
+      type == 'DISMISS_POPUP') {
+    final requestId = (data['requestId'] ?? data['visitId'] ?? data['id'] ?? '').toString();
+    if (requestId.isNotEmpty) {
+      BookingNotificationManager.dismissIfMatching(requestId);
+    }
+  }
+
+  // 1. ELIMINATE DUPLICATE NOTIFICATIONS:
+  // If the backend already provided an FCM `notification` block, Android OS automatically
+  // displays it in the system tray when in the background. Calling local notifications
+  // would display a duplicate notification for the exact same event.
+  if (message.notification != null) {
+    debugPrint('ℹ️ FCM notification payload automatically rendered by Android OS.');
+    return;
+  }
+
+  // 2. ELIMINATE DUMMY / SILENT NOTIFICATIONS:
+  // Only display a notification for data-only messages if there is genuine, non-silent content.
   try {
-    // If Android OS didn't create a tray notification (e.g. data-only payload or empty body),
-    // post one via flutter_local_notifications so the nurse sees the Howpa logo and matter!
-    await PushNotificationService.initLocalNotifications();
-    if (message.notification == null || (message.notification?.body?.trim().isEmpty ?? true)) {
-      final content = PushNotificationService.extractNotificationContent(message);
+    final content = PushNotificationService.extractNotificationContent(message);
+    if (content != null &&
+        content['title'] != null &&
+        content['title']!.isNotEmpty &&
+        content['body'] != null &&
+        content['body']!.isNotEmpty) {
+      await PushNotificationService.initLocalNotifications();
       await PushNotificationService.showSystemNotification(
         title: content['title']!,
         body: content['body']!,
         data: message.data,
       );
+    } else {
+      debugPrint('ℹ️ Silent/data event processed in background without showing dummy notification.');
     }
   } catch (e) {
     debugPrint('⚠️ Error in background notification handler: $e');
@@ -153,9 +184,22 @@ class PushNotificationService {
     }
   }
 
-  /// Extracts comprehensive Title and Matter/Body from both notification and data payloads
-  static Map<String, String> extractNotificationContent(RemoteMessage message) {
+  /// Extracts comprehensive Title and Matter/Body from both notification and data payloads.
+  /// Returns null for silent events or data payloads with no visible notification content
+  /// to prevent spurious/dummy notifications.
+  static Map<String, String>? extractNotificationContent(RemoteMessage message) {
     final data = message.data;
+    final type = (data['type'] ?? data['action'] ?? '').toString().toUpperCase();
+
+    // Check if explicitly marked silent or an internal synchronization/cleanup action
+    if (data['silent'] == 'true' ||
+        data['silent'] == true ||
+        type == 'DISMISS_NURSE_REQUEST' ||
+        type == 'DISMISS_POPUP' ||
+        type == 'SYNC' ||
+        type == 'PING') {
+      return null;
+    }
 
     // 1. Resolve Title
     String title = (message.notification?.title ?? '').trim();
@@ -169,7 +213,6 @@ class PushNotificationService {
           .trim();
     }
 
-    final type = (data['type'] ?? data['action'] ?? '').toString().toUpperCase();
     final patientName = (data['patientName'] ?? data['patient_name'] ?? data['name'] ?? '').toString().trim();
 
     if (title.isEmpty) {
@@ -184,7 +227,7 @@ class PushNotificationService {
       } else if (type.contains('VITAL')) {
         title = 'Patient Vitals Update';
       } else {
-        title = 'Howpa Nurse';
+        title = '';
       }
     }
 
@@ -224,8 +267,13 @@ class PushNotificationService {
       } else if (type.contains('VISIT') || type.contains('BOOKING')) {
         body = 'A new patient visit request has just arrived nearby. Tap to view and accept.';
       } else {
-        body = 'You have a new update. Tap to view details.';
+        body = '';
       }
+    }
+
+    // If both title and body are empty, or neither has real information, return null
+    if (title.isEmpty || body.isEmpty) {
+      return null;
     }
 
     return {'title': title, 'body': body};
@@ -417,31 +465,43 @@ class PushNotificationService {
   }
 
   void _handleForegroundMessage(RemoteMessage message) {
-    final content = extractNotificationContent(message);
-
-    // Show floating in-app banner overlay immediately
-    _showForegroundInAppBanner(
-      message,
-      resolvedTitle: content['title']!,
-      resolvedBody: content['body']!,
-    );
-
-    // Also post system tray notification with Howpa logo so it is visible in the status bar & drawer
-    showSystemNotification(
-      title: content['title']!,
-      body: content['body']!,
-      data: message.data,
-    );
-
     final data = message.data;
     final type = (data['type'] ?? data['action'] ?? '').toString().toUpperCase();
 
-    // If visit was taken/assigned/cancelled by another nurse, auto-dismiss active pop-up!
-    if (type == 'VISIT_ASSIGNED' || type == 'VISIT_CANCELLED' || type == 'VISIT_TAKEN' || type == 'REQUEST_EXPIRED') {
+    // If visit was taken/assigned/cancelled by another nurse or dismissed, auto-dismiss active pop-up!
+    if (type == 'VISIT_ASSIGNED' ||
+        type == 'VISIT_CANCELLED' ||
+        type == 'VISIT_TAKEN' ||
+        type == 'REQUEST_EXPIRED' ||
+        type == 'DISMISS_NURSE_REQUEST' ||
+        type == 'DISMISS_POPUP') {
       final requestId = (data['requestId'] ?? data['visitId'] ?? data['id'] ?? '').toString();
       if (requestId.isNotEmpty) {
         BookingNotificationManager.dismissIfMatching(requestId);
       }
+    }
+
+    final content = extractNotificationContent(message);
+    if (content == null) return;
+
+    final resolvedTitle = content['title']!;
+    final resolvedBody = content['body']!;
+
+    // Show floating in-app banner overlay immediately
+    _showForegroundInAppBanner(
+      message,
+      resolvedTitle: resolvedTitle,
+      resolvedBody: resolvedBody,
+    );
+
+    // Only post system tray notification for data-only messages so we don't double-notify
+    // if FCM foreground presentation already displays message.notification
+    if (message.notification == null) {
+      showSystemNotification(
+        title: resolvedTitle,
+        body: resolvedBody,
+        data: message.data,
+      );
     }
   }
 
